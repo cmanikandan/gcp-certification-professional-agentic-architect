@@ -1,5 +1,12 @@
 # Google Cloud Certified Professional Agentic Architect — Study & Hands-On Lab Repository 🚀
 
+> [!IMPORTANT]
+> **Unofficial Certification Guide & Training Disclaimer**:
+> This repository is an **independent, unofficial** study and hands-on preparation guide developed for technical practitioners preparing for the *Google Cloud Certified Professional Agentic Architect (Beta)* exam. It is **not** officially endorsed, sponsored, or affiliated with Google Cloud.
+> 
+> - For official certification details, requirements, and authoritative exam guide objectives, please refer to the official [Google Cloud Certification Portal](https://cloud.google.com/certification).
+> - For official on-demand training courses, interactive labs, and skill badges, please visit [Google Cloud Skills Boost](https://www.cloudskillsboost.google/) (and the official `skills.google` learning paths).
+
 Welcome to the definitive, hands-on preparation repository for the **Google Cloud Certified Professional Agentic Architect** certification (Beta).
 
 This repository is designed for developers, architects, and AI engineers who want to achieve deep mastery of autonomous agents, multi-agent orchestration, enterprise tool integration, security guardrails, and production deployment on Google Cloud.

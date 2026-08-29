@@ -1,5 +1,9 @@
 # Google Cloud Certified Professional Agentic Architect — Comprehensive Study Guide
 
+> [!IMPORTANT]
+> **Unofficial Certification Guide & Training Notice**:
+> This document is an **unofficial** companion study guide. Candidates must refer to the official [Google Cloud Certification Exam Guide](https://cloud.google.com/certification) for authoritative exam objectives, and complete official interactive courses via [Google Cloud Skills Boost](https://www.cloudskillsboost.google/) (`skills.google`).
+
 This study guide provides an in-depth architectural and theoretical breakdown for every section of the Google Cloud Certified Professional Agentic Architect exam. Use this guide alongside the 13 hands-on modules and practice exams.
 
 ---

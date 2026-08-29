@@ -1,5 +1,9 @@
 # Google Cloud Certified Professional Agentic Architect — Exam Blueprint & Syllabus
 
+> [!IMPORTANT]
+> **Unofficial Blueprint Notice**:
+> This blueprint is an **unofficial** educational overview. For official beta registration and authoritative syllabus updates, please visit the [Google Cloud Certification Portal](https://cloud.google.com/certification) and [Google Cloud Skills Boost](https://www.cloudskillsboost.google/).
+
 ## Overview
 The **Google Cloud Certified Professional Agentic Architect** certification validates the expertise required to design, develop, deploy, secure, and govern enterprise-grade autonomous AI agents and multi-agent systems on Google Cloud.
 

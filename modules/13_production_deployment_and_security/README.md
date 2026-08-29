@@ -34,3 +34,21 @@ python3 modules/13_production_deployment_and_security/security_guardrails.py
 # Run unit tests
 pytest modules/13_production_deployment_and_security/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+To delete the deployed **Cloud Run** service, container images, and IAM bindings:
+
+```bash
+# 1. Delete Cloud Run Service
+gcloud run services delete agent-gateway --region=$REGION --project=$PROJECT_ID --quiet
+
+# 2. Delete Container Images from Artifact Registry
+gcloud artifacts repositories delete agent-repo --location=$REGION --project=$PROJECT_ID --quiet 2>/dev/null || true
+
+# 3. Clean local cache & Python bytecode
+rm -rf __pycache__ .pytest_cache
+```
+

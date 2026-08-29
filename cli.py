@@ -162,6 +162,16 @@ def run_exam_simulator():
     else:
         print("📚 Result: NEEDS REVIEW. Study the relevant modules in this repository.")
 
+def run_cleanup():
+    print("\n🧹 Launching GCP Lab Resource Teardown & Cache Cleanup...")
+    cleanup_script = Path("scripts/cleanup_gcp_resources.sh")
+    if cleanup_script.exists():
+        res = subprocess.run(["bash", str(cleanup_script)])
+        return res.returncode
+    else:
+        print("❌ Cleanup script not found at scripts/cleanup_gcp_resources.sh")
+        return 1
+
 def check_environment():
     print("\n🔍 Verifying Environment & Google Cloud Configuration")
     print("="*80)
@@ -187,9 +197,10 @@ def interactive_menu():
         print("  2. 🧪 Run All Automated Tests (Pytest across all 13 modules)")
         print("  3. 📋 Take the Interactive Practice Exam Simulator")
         print("  4. 🔍 Check Environment & Gemini 3.7 Flash Configuration")
-        print("  5. 🚪 Exit\n")
+        print("  5. 🧹 Clean Up / Teardown GCP Resources & Local Caches")
+        print("  6. 🚪 Exit\n")
 
-        choice = input("Enter choice (1-5): ").strip()
+        choice = input("Enter choice (1-6): ").strip()
         if choice == "1":
             print("\nAvailable Modules:")
             for num, (_, _, title) in MODULE_DIRECTORIES.items():
@@ -210,6 +221,9 @@ def interactive_menu():
             check_environment()
             input("\nPress Enter to return to menu...")
         elif choice == "5":
+            run_cleanup()
+            input("\nPress Enter to return to menu...")
+        elif choice == "6":
             print("\nGood luck with your Google Cloud Certified Professional Agentic Architect exam! 🚀")
             break
         else:
@@ -221,6 +235,7 @@ def main():
     parser.add_argument("--test-all", action="store_true", help="Run pytest across all modules")
     parser.add_argument("--exam", action="store_true", help="Run the practice exam simulator")
     parser.add_argument("--check-env", action="store_true", help="Verify environment setup")
+    parser.add_argument("--cleanup", action="store_true", help="Clean up GCP resources and local caches")
 
     args = parser.parse_args()
 
@@ -232,6 +247,8 @@ def main():
         run_exam_simulator()
     elif args.check_env:
         check_environment()
+    elif args.cleanup:
+        sys.exit(run_cleanup())
     else:
         interactive_menu()
 

@@ -43,3 +43,15 @@ python3 modules/01_understand_agents_and_architecture/agent_architecture_demo.py
 ```bash
 pytest modules/01_understand_agents_and_architecture/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+This module runs locally in simulation mode and creates no persistent cloud resources.
+
+```bash
+# Clean local cache & Python bytecode
+rm -rf __pycache__ .pytest_cache
+```
+

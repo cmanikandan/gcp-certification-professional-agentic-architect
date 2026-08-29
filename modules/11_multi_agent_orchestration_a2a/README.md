@@ -28,3 +28,15 @@ python3 modules/11_multi_agent_orchestration_a2a/multi_agent_system.py
 # Run unit tests
 pytest modules/11_multi_agent_orchestration_a2a/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+This module orchestrates simulated multi-agent handoffs in memory.
+
+```bash
+# Clean local cache & Python bytecode
+rm -rf __pycache__ .pytest_cache
+```
+

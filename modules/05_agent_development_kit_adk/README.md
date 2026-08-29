@@ -36,3 +36,15 @@ python3 modules/05_agent_development_kit_adk/custom_adk_agent.py
 # Run unit tests
 pytest modules/05_agent_development_kit_adk/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+If you tested live Gemini API calls, no persistent cloud infrastructure is provisioned (stateless API billing per token).
+
+```bash
+# Clean local cache & Python bytecode
+rm -rf __pycache__ .pytest_cache
+```
+

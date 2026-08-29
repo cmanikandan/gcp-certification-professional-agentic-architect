@@ -41,3 +41,15 @@ python3 modules/08_custom_skills_plugins_and_hooks/skills_and_hooks_manager.py
 # Run unit tests
 pytest modules/08_custom_skills_plugins_and_hooks/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+This module manages custom skill definitions and lifecycle hooks in the workspace.
+
+```bash
+# Clean local cache & Python bytecode
+rm -rf __pycache__ .pytest_cache
+```
+

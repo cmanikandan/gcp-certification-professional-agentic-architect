@@ -37,3 +37,15 @@ python3 modules/07_agent_tools_and_capabilities/tool_orchestrator.py
 # Run unit tests
 pytest modules/07_agent_tools_and_capabilities/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+This module tests tool execution and schema generation locally.
+
+```bash
+# Clean local cache & Python bytecode
+rm -rf __pycache__ .pytest_cache
+```
+

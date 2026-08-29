@@ -46,3 +46,15 @@ python3 modules/03_agentic_strategy_and_prototyping/model_selection_matrix.py
 # Run unit tests
 pytest modules/03_agentic_strategy_and_prototyping/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+This module calculates cost and latency matrices in memory and does not leave persistent cloud infrastructure.
+
+```bash
+# Clean local cache & Python bytecode
+rm -rf __pycache__ .pytest_cache
+```
+

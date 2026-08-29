@@ -38,3 +38,21 @@ python3 modules/02_antigravity_and_coding_agents/coding_agent_sandbox.py
 # Run unit tests
 pytest modules/02_antigravity_and_coding_agents/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+If you tested Cloud Workstations or GKE Sandbox clusters on your GCP project:
+
+```bash
+# 1. Stop / Delete Cloud Workstation (if provisioned)
+gcloud workstations stop $WORKSTATION_NAME --cluster=$CLUSTER_NAME --config=$CONFIG_NAME --region=$REGION --project=$PROJECT_ID
+
+# 2. Delete GKE Sandbox Cluster (if created for isolated test runs)
+gcloud container clusters delete gke-sandbox-cluster --zone=$ZONE --project=$PROJECT_ID --quiet
+
+# 3. Clean local scratch artifacts
+rm -rf __pycache__ .pytest_cache
+```
+

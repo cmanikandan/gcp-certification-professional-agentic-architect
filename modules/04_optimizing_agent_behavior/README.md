@@ -39,3 +39,15 @@ python3 modules/04_optimizing_agent_behavior/prompt_optimizer.py
 # Run unit tests
 pytest modules/04_optimizing_agent_behavior/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+This module runs client-side prompt optimization and interceptors.
+
+```bash
+# Clean local cache & Python bytecode
+rm -rf __pycache__ .pytest_cache
+```
+

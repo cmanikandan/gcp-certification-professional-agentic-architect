@@ -28,3 +28,31 @@ python3 modules/09_enterprise_rag_and_vector_search/vector_search_rag.py
 # Run unit tests
 pytest modules/09_enterprise_rag_and_vector_search/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+If you created live **Vertex AI Vector Search 1.0** index endpoints or **Cloud Storage** staging buckets:
+
+```bash
+# 1. Undeploy Index from Index Endpoint
+gcloud ai index-endpoints undeploy-index $INDEX_ENDPOINT_ID \
+    --deployed-index-id=$DEPLOYED_INDEX_ID \
+    --region=$REGION \
+    --project=$PROJECT_ID
+
+# 2. Delete Vector Search Index Endpoint
+gcloud ai index-endpoints delete $INDEX_ENDPOINT_ID \
+    --region=$REGION \
+    --project=$PROJECT_ID --quiet
+
+# 3. Delete Vector Search Index
+gcloud ai indexes delete $INDEX_ID \
+    --region=$REGION \
+    --project=$PROJECT_ID --quiet
+
+# 4. Clean local cache & Python bytecode
+rm -rf __pycache__ .pytest_cache vector_index_cache.bin
+```
+

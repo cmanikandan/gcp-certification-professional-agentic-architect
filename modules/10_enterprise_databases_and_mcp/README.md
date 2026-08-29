@@ -28,3 +28,21 @@ python3 modules/10_enterprise_databases_and_mcp/mcp_database_server.py
 # Run unit tests
 pytest modules/10_enterprise_databases_and_mcp/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+If you provisioned live **BigQuery** test datasets or **Cloud SQL** PostgreSQL instances:
+
+```bash
+# 1. Delete BigQuery Test Dataset
+bq rm -r -f -d $PROJECT_ID:analytics_test
+
+# 2. Delete Cloud SQL Instance (if provisioned for live MCP testing)
+gcloud sql instances delete $INSTANCE_NAME --project=$PROJECT_ID --quiet
+
+# 3. Clean local cache & Python bytecode
+rm -rf __pycache__ .pytest_cache
+```
+

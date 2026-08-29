@@ -30,3 +30,18 @@ python3 modules/12_agentops_evaluation_and_monitoring/agent_evaluator.py
 # Run unit tests
 pytest modules/12_agentops_evaluation_and_monitoring/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+If you configured live **Google Cloud Logging** sinks or **Cloud Trace** log exports:
+
+```bash
+# 1. Delete custom log sinks
+gcloud logging sinks delete agentops-eval-sink --project=$PROJECT_ID --quiet 2>/dev/null || true
+
+# 2. Clean local cache & Python bytecode
+rm -rf __pycache__ .pytest_cache *.log
+```
+

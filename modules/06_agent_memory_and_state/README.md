@@ -38,3 +38,21 @@ python3 modules/06_agent_memory_and_state/memory_bank_manager.py
 # Run unit tests
 pytest modules/06_agent_memory_and_state/tests/ -v
 ```
+
+---
+
+## 🧹 Resource Cleanup / Teardown
+
+If you provisioned a **Memorystore for Redis** instance or **Cloud Firestore** collection for persistent state testing:
+
+```bash
+# 1. Delete Memorystore for Redis Instance
+gcloud redis instances delete $REDIS_INSTANCE_NAME --region=$REGION --project=$PROJECT_ID --quiet
+
+# 2. Delete Firestore Session Collections
+gcloud firestore operations cancel $OPERATION_ID --project=$PROJECT_ID 2>/dev/null || true
+
+# 3. Clean local cache & Python bytecode
+rm -rf __pycache__ .pytest_cache agent_memory_cache.json
+```
+

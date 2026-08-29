@@ -177,6 +177,26 @@ pytest modules/05_agent_development_kit_adk/ -v
 
 ---
 
+## 🧹 Resource Cleanup & Cost Teardown
+
+To avoid incurring unexpected charges on your Google Cloud account after completing the hands-on labs, run the automated teardown utility:
+
+```bash
+# Automated interactive GCP teardown
+./scripts/cleanup_gcp_resources.sh
+
+# Or clean up via the Master CLI menu / flag
+python3 cli.py --cleanup
+```
+
+### Manual Teardown Commands
+- **Cloud Run Agent Gateway**: `gcloud run services delete agent-gateway --region=$REGION --project=$PROJECT_ID --quiet`
+- **Vertex AI Vector Search Endpoint**: `gcloud ai index-endpoints delete $INDEX_ENDPOINT_ID --region=$REGION --project=$PROJECT_ID --quiet`
+- **Memorystore for Redis**: `gcloud redis instances delete $REDIS_INSTANCE_NAME --region=$REGION --project=$PROJECT_ID --quiet`
+- **Cloud Storage Bucket**: `gcloud storage rm --recursive gs://$GCS_BUCKET_NAME --quiet`
+
+---
+
 ## 📜 Study Tips for Passing the Beta Exam
 1. **Understand Architectural Trade-Offs**: The exam heavily tests when to use low-code vs custom code, when to use Gemini 3.7 Flash vs Pro vs Gemma 2, and when to use Agent Runtime vs Cloud Run vs GKE.
 2. **Master Agent Security**: Understand Principal Access Boundaries (PAB), Model Armor filters, and OAuth 2.0 Auth Manager.

@@ -15,15 +15,7 @@ This module explores autonomous coding agents in Google Cloud, focusing on the *
 
 ## 🏗️ Sandboxing Architecture
 
-```mermaid
-graph TD
-    Agent[Antigravity Developer Agent] --> Parser[Diff & Syntax Generator]
-    Parser --> SafetyCheck{Sandbox Enforcement}
-    SafetyCheck -->|Standard Sandbox| Isolated[Workspace-Only Directory & No Raw Network]
-    SafetyCheck -->|GKE gVisor| KernelSandbox[User-Space Kernel Interception (runsc)]
-    SafetyCheck -->|Cloud Workstations| CorpVPC[Zero-Trust Private VPC Dev Environment]
-    Isolated --> AutoTest[Run Automated Pytest Suite]
-```
+![Google Antigravity Coding Agent: Secure Sandboxing & Automated Remediations](../../assets/diagrams/coding_sandbox.jpg)
 
 ---
 

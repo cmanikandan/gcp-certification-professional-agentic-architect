@@ -8,6 +8,12 @@ Every module in this repository is **100% independently runnable**, thoroughly t
 
 ---
 
+## 🏛️ Platform Architecture Overview
+
+![Google Cloud Agentic Architect Platform Architecture](assets/diagrams/master_architecture.jpg)
+
+---
+
 ## 📚 Repository Structure & Learning Path
 
 ```

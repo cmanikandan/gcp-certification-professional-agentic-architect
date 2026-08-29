@@ -15,16 +15,7 @@ This module explores enterprise state management for autonomous AI agents on Goo
 
 ## 🧠 Multi-Tier Memory Hierarchy
 
-```mermaid
-graph TD
-    UserTurn[Incoming User Message] --> SessionManager[Managed Session Handler]
-    SessionManager --> ShortTerm[Short-Term Working Context Window]
-    ShortTerm -->|Token Overflow| Pruner[Sliding Window Pruner & Summarizer]
-    SessionManager --> MemoryBank[Agent Platform Memory Bank]
-    MemoryBank -->|Fact Extractor| SemanticStore[Long-Term Vector Fact Store]
-    SemanticStore -->|Recall Relevant Memories| PromptAugmenter[Augment System Context]
-    PromptAugmenter --> AgentCore[Gemini 3.7 Flash Reasoning Core]
-```
+![Multi-Tier AI Agent Memory Architecture](../../assets/diagrams/agent_memory_hierarchy.jpg)
 
 ---
 

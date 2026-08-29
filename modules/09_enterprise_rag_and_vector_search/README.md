@@ -15,17 +15,7 @@ This module explores enterprise domain knowledge grounding using **Vertex AI Vec
 
 ## 🔍 Enterprise RAG Pipeline Architecture
 
-```mermaid
-graph LR
-    DocStore[Enterprise Documents] --> Chunker[Semantic Chunker]
-    Chunker --> Embedder[text-embedding-005]
-    Embedder --> VectorIndex[Vertex AI Vector Search 1.0]
-    UserQuery[Agent Retrieval Query] --> QueryEmbed[text-embedding-005]
-    QueryEmbed --> VectorIndex
-    VectorIndex -->|Top-K Candidates| Reranker[Cross-Encoder Reranker]
-    Reranker --> AugmentedContext[Grounded Context + Citations]
-    AugmentedContext --> GeminiAgent[Gemini 3.7 Flash Agent]
-```
+![Enterprise RAG and Vertex AI Vector Search 1.0 Solution](../../assets/diagrams/rag_vector_search.jpg)
 
 ---
 

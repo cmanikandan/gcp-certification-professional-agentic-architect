@@ -15,22 +15,7 @@ This module explores enterprise database integration using the **Model Context P
 
 ## 🔌 Model Context Protocol (MCP) Architecture
 
-```mermaid
-graph LR
-    subgraph AgentHost ["Agent Client Host"]
-        Agent[Gemini 3.7 Flash Agent] --> MCPClient[MCP Client Protocol Handler]
-    end
-
-    subgraph MCPBridge ["MCP Transport (Stdio / SSE)"]
-        MCPClient <-->|JSON-RPC 2.0| MCPServer[Google Cloud MCP Database Server]
-    end
-
-    subgraph DataPlane ["Google Cloud Data Services"]
-        MCPServer --> BQ[BigQuery Analytics]
-        MCPServer --> CloudSQL[Cloud SQL PostgreSQL]
-        MCPServer --> Spanner[Cloud Spanner]
-    end
-```
+![Google Cloud Model Context Protocol (MCP) Toolbox for Databases](../../assets/diagrams/mcp_database_diagram.jpg)
 
 ---
 

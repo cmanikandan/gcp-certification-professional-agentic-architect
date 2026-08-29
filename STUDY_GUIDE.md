@@ -19,14 +19,7 @@ This study guide provides an in-depth architectural and theoretical breakdown fo
 ### 1.1 Low-Code Platforms Overview
 Google Cloud provides low-code agent creation through **Gemini Enterprise Agent Designer** and **Customer Experience Agent Studio (CX Agent Studio)** (formerly Dialogflow CX).
 
-```mermaid
-graph LR
-    User[User Input] --> IntentRouter[Intent Router / Classifier]
-    IntentRouter --> Page1[Page: Order Lookup]
-    Page1 -->|Route Transition| Page2[Page: Fulfillment Status]
-    Page2 --> EventH[Event Handler: API Failure]
-    Page2 --> ToolCall[Agent Search / Webhook]
-```
+![Low-Code vs Autonomous AI Agent Architecture](assets/diagrams/low_code_vs_agent.jpg)
 
 #### Key Architecture Concepts:
 - **Pages**: Fundamental state nodes representing distinct conversation stages. Each page maintains its own state, entry fulfillment, and active parameters.
@@ -45,14 +38,7 @@ graph LR
 ### 2.1 Coding Agents & Developer Tooling
 Coding agents (e.g., **Google Antigravity**, **Claude Code on Google Cloud**) act as autonomous pair programmers that inspect codebases, execute shell commands, manage tests, and refactor applications.
 
-```mermaid
-graph TD
-    Agent[Antigravity Coding Agent] --> MCP[Model Context Protocol MCP Server]
-    Agent --> Sandbox[Secure Execution Sandbox]
-    Sandbox --> GKE[Google Kubernetes Engine GKE Sandbox]
-    Sandbox --> Workstations[Cloud Workstations Sandbox]
-    Agent --> Patch[Automated Vulnerability Patching]
-```
+![Coding Agent Sandboxes & Automated Remediation](assets/diagrams/coding_sandbox.jpg)
 
 #### Sandboxing Strategies:
 - **Antigravity Sandboxing**: Enforces path isolation, read/write workspace restrictions, and network access boundaries (Standard vs Bypass Sandbox Mode).
@@ -83,15 +69,7 @@ This is the largest domain in the exam. It requires master-level understanding o
 
 ### 3.2 Agent Memory, State & Sessions
 
-```mermaid
-graph TD
-    UserTurn[User Prompt] --> SessionManager[Managed Session Controller]
-    SessionManager --> WorkingMemory[Short-Term Working Context]
-    SessionManager --> MemoryBank[Agent Platform Memory Bank]
-    MemoryBank --> SemanticRetrieval[Semantic Vector Index]
-    MemoryBank --> EntityGraph[Entity Knowledge Graph]
-    WorkingMemory --> Pruner[Context Window Pruner / Summarizer]
-```
+![Multi-Tier AI Agent Memory Architecture](assets/diagrams/agent_memory_hierarchy.jpg)
 
 - **Short-Term Working Context**: Active conversation messages in the context window. Uses FIFO pruning or sliding-window summarization when approaching token limits.
 - **Managed Sessions**: Ephemeral or persistent session IDs storing conversation state, variables, and tool invocation history across turns.
@@ -99,32 +77,23 @@ graph TD
 - **Redis / Firestore Backends**: Low-latency distributed session cache (Memorystore for Redis) for high-scale multi-instance agent deployments.
 
 ### 3.3 Enterprise RAG & Vector Search 1.0
+
+![Enterprise RAG and Vertex AI Vector Search 1.0](assets/diagrams/rag_vector_search.jpg)
+
 - **Embeddings**: `text-embedding-005` (768-dim / 1536-dim) with Matryoshka dimensionality reduction for optimized vector storage.
 - **Vector Search 1.0 (Vertex AI Vector Search)**: Scalable, low-latency approximate nearest neighbor (ANN) search using ScaNN (Score-aware Scalable Nearest Neighbors).
 - **Agent Retrieval**: Native tool connector allowing agents to query vector indexes with dynamic filters, similarity thresholds, and reranking.
 
 ### 3.4 Model Context Protocol (MCP) & MCP Toolbox for Databases
+
+![Google Cloud Model Context Protocol (MCP) Toolbox for Databases](assets/diagrams/mcp_database_diagram.jpg)
+
 - **MCP Protocol**: Standardized client-server protocol over `stdio` or `Server-Sent Events (SSE)` exposing resources, prompts, and tools.
 - **Google Cloud MCP Toolbox**: Pre-built MCP servers for BigQuery, Cloud SQL, Spanner, AlloyDB, and Google Cloud Storage.
 
 ### 3.5 Multi-Agent Orchestration Patterns & Agent2Agent (A2A)
 
-```mermaid
-graph TD
-    subgraph Hierarchical ["Hierarchical Supervisor Pattern"]
-        Supervisor[Supervisor Agent (Gemini 3.7 Flash)] -->|Delegate| ResearchAgent[Research Agent]
-        Supervisor -->|Delegate| CodeAgent[Coding Agent]
-        Supervisor -->|Delegate| ReviewAgent[Review Agent]
-    end
-
-    subgraph Sequential ["Sequential Pipeline Pattern"]
-        Step1[Agent 1: Ingestion] --> Step2[Agent 2: Enrichment] --> Step3[Agent 3: Synthesis]
-    end
-
-    subgraph A2A ["Agent2Agent (A2A) Protocol"]
-        AgentA[Customer Service Agent] <-->|A2A Handoff| AgentB[Billing Dispute Agent]
-    end
-```
+![Multi-Agent Systems Enterprise Architecture & A2A Protocol](assets/diagrams/multi_agent_a2a.jpg)
 
 - **Sequential Agents**: Output of Agent A becomes input to Agent B (linear data processing).
 - **Parallel Agents**: Multiple specialist agents analyze the same task concurrently; results are synthesized by a reduction agent.
@@ -138,14 +107,7 @@ graph TD
 ### 4.1 Agent Evaluation Frameworks
 Agent evaluation differs fundamentally from traditional static ML evaluation because agents interact iteratively with environments and tools.
 
-```mermaid
-graph LR
-    GoldenDataset[Golden Dataset: Prompts + Expected Actions] --> AgentRuntime[Agent Under Test]
-    AgentRuntime --> ExecutionTraces[Traces & Tool Calls]
-    ExecutionTraces --> Evalset[ADK Evalset Tooling]
-    ExecutionTraces --> LLMJudge[Agent Platform Autorater (Gemini 3.7 Flash)]
-    Evalset --> Scorecard[Quality Scorecard: Faithfulness, Tool Precision, Latency]
-```
+![Google Cloud AgentOps Architecture](assets/diagrams/agentops_eval_tracing.jpg)
 
 #### Core Metrics:
 1. **Tool Selection Accuracy**: Did the agent pick the correct tool from the available schema?
@@ -173,16 +135,7 @@ graph LR
 
 ### 5.1 Security Architecture & Access Boundaries
 
-```mermaid
-graph TD
-    User[User / Client] --> AgentGateway[Agent Gateway (OAuth 2.0 Auth Manager)]
-    AgentGateway --> ModelArmor[Model Armor: Prompt Injection / Jailbreak Filter]
-    ModelArmor --> AgentIdentity[Agent Identity & Principal Access Boundary PAB]
-    AgentIdentity --> Tools[Protected Enterprise Tools & Databases]
-    Tools --> HITL{High-Risk Action?}
-    HITL -->|Yes| HumanApproval[Human-In-The-Loop Approval Gate]
-    HITL -->|No| Execute[Execute API Call]
-```
+![Google Cloud AI Agent Security & Governance Architecture](assets/diagrams/security_model_armor.jpg)
 
 #### Key Governance Components:
 - **Agent Identity**: Dedicated IAM principal representing the autonomous agent, independent of the invoking end-user.

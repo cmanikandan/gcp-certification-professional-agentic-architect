@@ -17,23 +17,7 @@ This module establishes the foundational architectural principles of Google Clou
 
 ## 🏗️ Architecture Comparison
 
-```mermaid
-graph TD
-    subgraph Deterministic ["Low-Code Deterministic State Machine (CX Agent Studio)"]
-        D_Start[Start Page] -->|Intent Match: Return Item| D_Page1[Page: Return Policy Validation]
-        D_Page1 -->|Condition: Receipt Provided| D_Page2[Page: Issue Refund]
-        D_Page1 -->|Event: No Match| D_Fallback[Event Handler: Fallback Page]
-    end
-
-    subgraph Autonomous ["Autonomous Custom Agent (Gemini 3.7 Flash)"]
-        A_User[User Goal: Process complex return] --> A_Reason[Perception & Thinking Mode]
-        A_Reason -->|Select Tool| A_Tool[Dynamic Tool: Query Policy DB]
-        A_Tool --> A_Observe[Observe Tool Output]
-        A_Observe --> A_Reflect{Goal Complete?}
-        A_Reflect -->|No| A_Reason
-        A_Reflect -->|Yes| A_Response[Final Grounded Response]
-    end
-```
+![Architectural Comparison: AI Agent Development Approaches](../../assets/diagrams/low_code_vs_agent.jpg)
 
 ---
 

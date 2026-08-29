@@ -17,14 +17,7 @@ This module explores enterprise AgentOps on Google Cloud. You will learn to buil
 
 ## 📊 Evaluation & Tracing Architecture
 
-```mermaid
-graph LR
-    GoldenData[Golden Dataset: Prompts & Expectations] --> Runner[ADK Evalset Runner]
-    Runner --> AgentUnderAudit[Agent Under Evaluation]
-    AgentUnderAudit --> Trace[Cloud Trace Spans: TTFT, Latency, Tool Execution]
-    AgentUnderAudit --> LLMJudge[Gemini 3.7 Flash Autorater]
-    LLMJudge --> Scorecard[Quality Scorecard: Faithfulness, Tool Accuracy, Relevance]
-```
+![Google Cloud AgentOps Architecture](../../assets/diagrams/agentops_eval_tracing.jpg)
 
 ---
 

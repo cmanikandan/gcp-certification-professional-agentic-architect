@@ -15,16 +15,7 @@ This module covers multi-agent design patterns and inter-agent communication pro
 
 ## 🤝 Multi-Agent Topologies & A2A Protocol
 
-```mermaid
-graph TD
-    UserGoal[User Goal] --> Supervisor[Supervisor Agent (Gemini 3.7 Flash)]
-    Supervisor -->|A2A Handoff Token| IngestionAgent[Ingestion Agent]
-    Supervisor -->|A2A Handoff Token| SecurityAuditAgent[Security Audit Agent]
-    Supervisor -->|A2A Handoff Token| SynthesisAgent[Synthesis Agent]
-    IngestionAgent -->|Structured Observation| Supervisor
-    SecurityAuditAgent -->|Structured Observation| Supervisor
-    Supervisor -->|Aggregated Plan| UserGoal
-```
+![Multi-Agent Systems Enterprise Architecture & A2A Protocol](../../assets/diagrams/multi_agent_a2a.jpg)
 
 ---
 

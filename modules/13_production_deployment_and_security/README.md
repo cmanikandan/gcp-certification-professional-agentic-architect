@@ -21,19 +21,7 @@ This module covers enterprise production deployment and multi-layered security g
 
 ## 🛡️ Enterprise Security & Governance Architecture
 
-```mermaid
-graph TD
-    Client[End User / External API] --> Gateway[Agent Gateway (OAuth 2.0 Auth Manager)]
-    Gateway --> ModelArmor[Model Armor: Prompt Injection & Jailbreak Filter]
-    ModelArmor -->|Sanitized Prompt| Identity[Agent Identity with Principal Access Boundary PAB]
-    Identity --> AgentCore[Agent Runtime on Cloud Run (Gemini 3.7 Flash)]
-    AgentCore --> ToolEvaluation{High-Risk Action? e.g. Wire Transfer > $1,000}
-    ToolEvaluation -->|Yes| HITL[Human-In-The-Loop (HITL) Gate: Approval Required]
-    ToolEvaluation -->|No| Execute[Direct Tool Execution]
-    HITL -->|Manager Approved| Execute
-    Execute --> DLP[Sensitive Data Protection DLP: PII Masking]
-    DLP --> Response[Final Clean Response to Client]
-```
+![Google Cloud AI Agent Security & Governance Architecture](../../assets/diagrams/security_model_armor.jpg)
 
 ---
 

@@ -131,7 +131,7 @@ def main():
     engine.index_document(
         chunk_id="chk_01",
         source_uri="gs://corp-docs/iam-policies/pab-guidelines.pdf",
-        text="Principal Access Boundary (PAB) policies restrict IAM service account credentials within defined VPC service perimeters.",
+        text="Principal Access Boundary (PAB) policies cap the Google Cloud resources an IAM principal can access; they do not grant permissions.",
         metadata={"category": "security"}
     )
     engine.index_document(

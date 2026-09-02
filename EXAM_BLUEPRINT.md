@@ -7,9 +7,7 @@
 ## Overview
 The **Google Cloud Certified Professional Agentic Architect** certification validates the expertise required to design, develop, deploy, secure, and govern enterprise-grade autonomous AI agents and multi-agent systems on Google Cloud.
 
-- **Exam Duration**: 2 Hours (120 Minutes)
-- **Question Format**: 50–60 Multiple-Choice and Multiple-Select Questions
-- **Passing Score**: Scaled scoring (typically ~70-75%)
+- **Exam logistics**: The exam guide used for this repository does not specify duration, question count, delivery format, or a passing score. Confirm current logistics on the official registration page rather than relying on unofficial figures.
 - **Prerequisites**: Deep understanding of LLM architectures, Google Cloud compute/data/security services, Agent Development Kit (ADK), Antigravity, Model Context Protocol (MCP), and Agent2Agent (A2A) orchestration.
 
 ---
@@ -31,7 +29,7 @@ The **Google Cloud Certified Professional Agentic Architect** certification vali
 ### Section 1: Building agents using low-code tools (~13%)
 - **1.1 Configuring agentic workflows and behavior using low-code tools**:
   - Configuring state-based workflows: pages, transition routes, and event handlers in Gemini Enterprise Agent Designer and Customer Experience Agent Studio (CX Agent Studio).
-  - Designing system instructions and in-console prompt templates: zero-shot, few-shot, and Chain-of-Thought (CoT) to steer agent behavior.
+  - Designing system instructions and in-console prompt templates: zero-shot, few-shot, and chain-of-thought (CoT) patterns to steer agent behavior. For production telemetry, retain concise decisions and tool traces rather than private scratchpad text.
   - Defining fallback handlers, intent classification, and entity extraction in low-code builders.
 - **1.2 Connecting enterprise data to Gemini Enterprise**:
   - Securely connecting proprietary data stores (BigQuery, Cloud Storage, Google Drive, Third-party SaaS).

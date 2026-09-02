@@ -51,8 +51,8 @@ class SecurityAuditAgent(BaseSpecialistAgent):
         findings = []
 
         if "public" in target.lower():
-            findings.append("CRITICAL: Public internet exposure without Agent Gateway WAF.")
-        findings.append("COMPLIANT: Principal Access Boundary (PAB) policy active on service account.")
+            findings.append("CRITICAL: Public exposure without authenticated Agent Gateway policy enforcement.")
+        findings.append("COMPLIANT: Principal Access Boundary (PAB) caps the agent identity's resource reach.")
 
         return {
             "agent_id": self.agent_id,

@@ -57,12 +57,17 @@ else
     fi
 fi
 
-# Clean local cache & test files
-find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
-rm -f agent_memory_cache.json vector_index_cache.bin *.log 2>/dev/null || true
+# Run each module's scoped, idempotent local cleanup contract.
+for MODULE_CLEANUP in modules/[0-9][0-9]_*/cleanup.sh; do
+    bash "$MODULE_CLEANUP"
+done
+
+if [ -d ".pytest_cache" ]; then
+    rm -rf -- ".pytest_cache"
+fi
+rm -f -- agent_memory_cache.json vector_index_cache.bin ./*.log 2>/dev/null || true
 
 echo "✅ Local test caches, SQLite temp databases, and logs cleaned up."
 echo "===================================================================="
-echo "🎉 Teardown complete! Zero ongoing cloud compute costs."
+echo "🎉 Teardown commands completed. Review Billing and Asset Inventory to confirm no live lab resources remain."
 echo "===================================================================="

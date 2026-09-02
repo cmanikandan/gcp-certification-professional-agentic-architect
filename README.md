@@ -11,7 +11,9 @@ Welcome to the definitive, hands-on preparation repository for the **Google Clou
 
 This repository is designed for developers, architects, and AI engineers who want to achieve deep mastery of autonomous agents, multi-agent orchestration, enterprise tool integration, security guardrails, and production deployment on Google Cloud.
 
-Every module in this repository is **100% independently runnable**, thoroughly tested, grounded in real-world enterprise architectures, and pre-configured for the latest **Gemini 3.7 Flash** model.
+Every module is independently runnable and tested. Labs are deterministic and offline by default; live, potentially billable API use requires explicit opt-in.
+
+Start with the [exam readiness map](EXAM_READINESS.md) for objective coverage and high-yield distinctions, then use the [hands-on lab runbook](LAB_RUNBOOK.md) for the repeatable run-test-cleanup workflow.
 
 ---
 
@@ -29,6 +31,8 @@ gcp-certification-professional-agentic-architect/
 ├── STUDY_GUIDE.md                            # Comprehensive exam guide, concepts & cheatsheets
 ├── EXAM_BLUEPRINT.md                         # Detailed domain weightings, objectives & tool map
 ├── PRACTICE_EXAM.md                          # High-yield scenario-based exam questions & rationales
+├── EXAM_READINESS.md                         # Official-objective coverage and readiness gates
+├── LAB_RUNBOOK.md                            # Standard run, test, debrief, and cleanup contract
 ├── requirements.txt                          # Python dependencies
 ├── .env.example                              # Environment configuration template
 ├── cli.py                                    # Interactive CLI tool (Labs, Tests, Exam Simulator)
@@ -51,6 +55,7 @@ gcp-certification-professional-agentic-architect/
 ├── scripts/                                  # Automation & Setup Utilities
 │   ├── setup_environment.sh                  # Bootstrap virtualenv and dependencies
 │   ├── test_all_modules.sh                   # Run full test suite across all 13 modules
+│   ├── verify_labs.sh                        # Run and clean each module independently
 │   └── deploy_to_gcp.sh                      # Cloud deployment helper
 │
 └── .github/
@@ -104,7 +109,7 @@ GEMINI_API_KEY=your-gemini-api-key-here
 GEMINI_MODEL=gemini-3.7-flash
 ```
 
-> **Note**: All labs feature an **automatic mock fallback**. You can run and test all 13 modules immediately even if you don't have a live GCP project or API key configured!
+> **Note**: All labs run offline by default. Module 05 requires an explicit `--live` flag before it can use a configured API key.
 
 ---
 
@@ -132,6 +137,12 @@ pytest modules/ -v
 Or run a specific module's test suite:
 ```bash
 pytest modules/05_agent_development_kit_adk/ -v
+```
+
+To prove the complete independent run/cleanup contract:
+
+```bash
+./scripts/verify_labs.sh
 ```
 
 ---

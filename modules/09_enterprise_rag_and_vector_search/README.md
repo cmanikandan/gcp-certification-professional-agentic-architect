@@ -19,7 +19,21 @@ This module explores enterprise domain knowledge grounding using **Vertex AI Vec
 
 ---
 
+## High-yield exam checkpoint
+
+Evaluate retrieval separately from generation. Embedding and similarity choices affect candidate recall; reranking improves ordering; grounded generation still needs citations, identity-aware filtering, freshness, and response evaluation.
+
+---
+
 ## 🚀 Hands-on Lab: Running the Module
+
+The supported entrypoint runs both the demonstration and this module's tests from any current directory:
+
+```bash
+./modules/09_enterprise_rag_and_vector_search/run_lab.sh
+```
+
+Equivalent manual commands:
 
 ```bash
 # Run the Vector Search and RAG pipeline lab
@@ -32,6 +46,12 @@ pytest modules/09_enterprise_rag_and_vector_search/tests/ -v
 ---
 
 ## 🧹 Resource Cleanup / Teardown
+
+Always finish with the idempotent module cleanup:
+
+```bash
+./modules/09_enterprise_rag_and_vector_search/cleanup.sh
+```
 
 If you created live **Vertex AI Vector Search 1.0** index endpoints or **Cloud Storage** staging buckets:
 
@@ -55,4 +75,3 @@ gcloud ai indexes delete $INDEX_ID \
 # 4. Clean local cache & Python bytecode
 rm -rf __pycache__ .pytest_cache vector_index_cache.bin
 ```
-

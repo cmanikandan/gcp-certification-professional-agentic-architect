@@ -124,9 +124,9 @@ class AutonomousAgentSimulator:
     def execute_goal(self, user_goal: str, order_id: str) -> Dict[str, Any]:
         """Executes multi-step reasoning with tool invocation."""
         steps = []
-        # Step 1: Perception & Thought
-        thought_1 = f"User wants: '{user_goal}'. First, I must check order status for {order_id} using 'query_order_db'."
-        steps.append({"step": 1, "thought": thought_1, "action": "CALL_TOOL", "tool": "query_order_db"})
+        # Step 1: Observable decision summary (not a private reasoning trace)
+        decision_1 = f"Check order status for {order_id} before calculating any refund."
+        steps.append({"step": 1, "decision_summary": decision_1, "action": "CALL_TOOL", "tool": "query_order_db"})
 
         # Step 2: Tool Execution
         order_info = self.tools["query_order_db"](order_id)
@@ -138,8 +138,8 @@ class AutonomousAgentSimulator:
 
         # Step 3: Reflection & Next Action
         if order_info.get("returnable"):
-            thought_2 = f"Order {order_id} is returnable. Now calculating refund for amount ${order_info['amount']}."
-            steps.append({"step": 3, "thought": thought_2, "action": "CALL_TOOL", "tool": "calculate_refund"})
+            decision_2 = f"Order {order_id} is returnable; calculate the policy-defined refund."
+            steps.append({"step": 3, "decision_summary": decision_2, "action": "CALL_TOOL", "tool": "calculate_refund"})
             refund_calc = self.tools["calculate_refund"](order_info["amount"])
             steps.append({"step": 4, "observation": refund_calc})
 
@@ -155,6 +155,38 @@ class AutonomousAgentSimulator:
             "model": self.model_name,
             "steps": steps,
             "final_response": final_response
+        }
+
+
+# ============================================================================
+# 3. Gemini Enterprise data-connection planning (Exam objective 1.2)
+# ============================================================================
+
+@dataclass(frozen=True)
+class EnterpriseDataSource:
+    name: str
+    modality: str
+    location: str
+    contains_sensitive_data: bool = False
+
+
+class EnterpriseDataConnectionPlanner:
+    """Plans grounding and ingestion controls for proprietary multimodal data."""
+
+    SUPPORTED_MODALITIES = {"text", "pdf", "image", "audio", "video"}
+
+    def plan(self, sources: List[EnterpriseDataSource]) -> Dict[str, Any]:
+        unsupported = sorted({source.modality for source in sources} - self.SUPPORTED_MODALITIES)
+        if unsupported:
+            raise ValueError(f"Unsupported modalities: {unsupported}")
+        controls = ["Agent Identity least-privilege connector access", "Grounded citations"]
+        if any(source.contains_sensitive_data for source in sources):
+            controls.extend(["Sensitive Data Protection inspection", "Access-filtered retrieval"])
+        return {
+            "ingestion_target": "Gemini Enterprise / Agent Search",
+            "modalities": sorted({source.modality for source in sources}),
+            "source_count": len(sources),
+            "security_controls": controls,
         }
 
 # ==============================================================================
@@ -184,6 +216,15 @@ def main():
     agent = AutonomousAgentSimulator()
     result = agent.execute_goal(user_goal="Process return and calculate refund", order_id="ORD-991")
     print(json.dumps(result, indent=2))
+
+    print("\n--- 3. Planning Secure Multimodal Enterprise Grounding ---")
+    planner = EnterpriseDataConnectionPlanner()
+    data_plan = planner.plan([
+        EnterpriseDataSource("Policy PDFs", "pdf", "Cloud Storage", True),
+        EnterpriseDataSource("Support recordings", "audio", "Cloud Storage", True),
+        EnterpriseDataSource("Product images", "image", "Cloud Storage"),
+    ])
+    print(json.dumps(data_plan, indent=2))
 
 if __name__ == "__main__":
     main()

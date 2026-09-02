@@ -8,6 +8,7 @@ Demonstrates:
 
 import os
 import re
+import time
 import uuid
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional
@@ -42,16 +43,124 @@ class ModelArmorFilter:
         return {"is_safe": True, "threat_type": None, "action": "ALLOW"}
 
 class PrincipalAccessBoundaryEnforcer:
-    """Simulates IAM Principal Access Boundary (PAB) scoping for Agent Identity."""
+    """Simulates the resource ceiling imposed on an Agent Identity by IAM PAB.
 
-    def __init__(self, allowed_vpc_sc_perimeter: str, authorized_services: List[str]):
-        self.perimeter = allowed_vpc_sc_perimeter
+    A PAB limits which resources a principal can ever access. It does not grant
+    access and it is not a VPC Service Controls perimeter; ordinary IAM allow
+    policy and network/perimeter controls must also succeed.
+    """
+
+    def __init__(self, allowed_resource_prefixes: List[str], authorized_services: List[str]):
+        self.allowed_resource_prefixes = tuple(allowed_resource_prefixes)
         self.authorized_services = set(authorized_services)
 
-    def authorize_agent_action(self, target_service: str, target_perimeter: str) -> bool:
-        if target_perimeter != self.perimeter:
-            return False
-        return target_service in self.authorized_services
+    def authorize_agent_action(self, target_service: str, target_resource: str) -> bool:
+        resource_in_boundary = any(
+            target_resource.startswith(prefix) for prefix in self.allowed_resource_prefixes
+        )
+        return resource_in_boundary and target_service in self.authorized_services
+
+
+@dataclass(frozen=True)
+class OAuthAccessToken:
+    subject: str
+    audience: str
+    scopes: frozenset[str]
+    expires_at_epoch: float
+
+
+class AuthManagerSimulator:
+    """Validates OAuth 2.0 audience, expiry, and least-privilege scopes."""
+
+    def authorize(
+        self,
+        token: OAuthAccessToken,
+        expected_audience: str,
+        required_scopes: List[str],
+        now_epoch: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        now = time.time() if now_epoch is None else now_epoch
+        if token.expires_at_epoch <= now:
+            return {"authorized": False, "reason": "TOKEN_EXPIRED"}
+        if token.audience != expected_audience:
+            return {"authorized": False, "reason": "AUDIENCE_MISMATCH"}
+        missing = sorted(set(required_scopes) - set(token.scopes))
+        if missing:
+            return {"authorized": False, "reason": "MISSING_SCOPE", "missing": missing}
+        return {"authorized": True, "reason": "AUTHORIZED", "subject": token.subject}
+
+
+@dataclass(frozen=True)
+class RegisteredAgent:
+    name: str
+    version: str
+    identity: str
+    allowed_tools: frozenset[str]
+
+
+class AgentRegistrySimulator:
+    """Inventory and capability-policy source used by an Agent Gateway."""
+
+    def __init__(self):
+        self._agents: Dict[str, RegisteredAgent] = {}
+
+    def register(self, agent: RegisteredAgent) -> None:
+        self._agents[agent.name] = agent
+
+    def get(self, name: str) -> Optional[RegisteredAgent]:
+        return self._agents.get(name)
+
+
+class AgentGatewaySimulator:
+    """Central policy-enforcement point for agent traffic and tool requests."""
+
+    def __init__(self, registry: AgentRegistrySimulator, auth_manager: AuthManagerSimulator):
+        self.registry = registry
+        self.auth_manager = auth_manager
+        self.armor = ModelArmorFilter()
+        self.audit_log: List[Dict[str, Any]] = []
+
+    def authorize_request(
+        self,
+        agent_name: str,
+        prompt: str,
+        requested_tool: str,
+        token: OAuthAccessToken,
+        now_epoch: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        agent = self.registry.get(agent_name)
+        if agent is None:
+            decision = {"allowed": False, "reason": "UNREGISTERED_AGENT"}
+        elif not self.armor.inspect_payload(prompt)["is_safe"]:
+            decision = {"allowed": False, "reason": "MODEL_ARMOR_BLOCK"}
+        elif requested_tool not in agent.allowed_tools:
+            decision = {"allowed": False, "reason": "TOOL_POLICY_DENY"}
+        else:
+            auth = self.auth_manager.authorize(
+                token,
+                expected_audience="agent-gateway",
+                required_scopes=["tools.invoke"],
+                now_epoch=now_epoch,
+            )
+            decision = {
+                "allowed": auth["authorized"],
+                "reason": auth["reason"],
+                "agent_version": agent.version,
+            }
+        self.audit_log.append({"agent": agent_name, "tool": requested_tool, **decision})
+        return decision
+
+
+class RuntimeSelector:
+    """Encodes the exam-level runtime decision tree."""
+
+    @staticmethod
+    def select(needs_managed_agent_features: bool, needs_kubernetes_control: bool) -> str:
+        if needs_kubernetes_control:
+            return "GKE"
+        if needs_managed_agent_features:
+            return "Agent Runtime"
+        return "Cloud Run"
 
 @dataclass
 class PendingApproval:
@@ -125,16 +234,42 @@ def main():
     # 2. Principal Access Boundary (PAB) Enforcement
     print("\n--- 2. Testing Principal Access Boundary (PAB) Scoping ---")
     pab = PrincipalAccessBoundaryEnforcer(
-        allowed_vpc_sc_perimeter="accessPolicies/408/servicePerimeters/prod_perimeter",
+        allowed_resource_prefixes=["//bigquery.googleapis.com/projects/prod-data/"],
         authorized_services=["bigquery.googleapis.com", "storage.googleapis.com"]
     )
-    is_auth_bq = pab.authorize_agent_action("bigquery.googleapis.com", "accessPolicies/408/servicePerimeters/prod_perimeter")
-    is_auth_untrusted = pab.authorize_agent_action("external-api.untrusted.com", "accessPolicies/408/servicePerimeters/prod_perimeter")
+    is_auth_bq = pab.authorize_agent_action(
+        "bigquery.googleapis.com", "//bigquery.googleapis.com/projects/prod-data/datasets/finance"
+    )
+    is_auth_untrusted = pab.authorize_agent_action(
+        "bigquery.googleapis.com", "//bigquery.googleapis.com/projects/untrusted/datasets/export"
+    )
     print("BigQuery Authorized via PAB        :", is_auth_bq)
-    print("Untrusted External API Authorized  :", is_auth_untrusted)
+    print("Out-of-bound Resource Authorized   :", is_auth_untrusted)
 
-    # 3. Human-In-The-Loop (HITL) Gate
-    print("\n--- 3. Testing Human-in-the-Loop (HITL) Governance ---")
+    # 3. Agent Registry + Gateway + OAuth policy chain
+    print("\n--- 3. Testing Agent Registry, Gateway & OAuth 2.0 ---")
+    registry = AgentRegistrySimulator()
+    registry.register(RegisteredAgent(
+        name="billing-agent",
+        version="1.2.0",
+        identity="billing-agent@project.iam.gserviceaccount.com",
+        allowed_tools=frozenset({"lookup_invoice"}),
+    ))
+    token = OAuthAccessToken(
+        subject="billing-agent@project.iam.gserviceaccount.com",
+        audience="agent-gateway",
+        scopes=frozenset({"tools.invoke"}),
+        expires_at_epoch=2_000_000_000,
+    )
+    gateway = AgentGatewaySimulator(registry, AuthManagerSimulator())
+    print("Gateway Decision:", gateway.authorize_request(
+        "billing-agent", "Look up invoice INV-7", "lookup_invoice", token, now_epoch=1_900_000_000
+    ))
+
+    print("Runtime Decision (managed memory/eval):", RuntimeSelector.select(True, False))
+
+    # 4. Human-In-The-Loop (HITL) Gate
+    print("\n--- 4. Testing Human-in-the-Loop (HITL) Governance ---")
     hitl = HumanInTheLoopGate(high_risk_threshold_usd=1000.0)
 
     # Low risk -> Auto Approved

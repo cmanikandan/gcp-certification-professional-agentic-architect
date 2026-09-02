@@ -24,6 +24,9 @@ def test_sandbox_path_containment():
     with pytest.raises(SandboxPolicyViolation):
         validator.validate_file_access("/root/.ssh/id_rsa")
 
+    with pytest.raises(SandboxPolicyViolation):
+        validator.validate_file_access("/safe/workspace-escape/secret.txt")
+
 def test_sandbox_dangerous_command():
     validator = AntigravitySandboxValidator(allowed_root="/safe/workspace")
     assert validator.validate_command("pytest tests/ -v") is True
@@ -41,7 +44,7 @@ def test_vulnerability_detection_and_patching():
 
     patched = agent.patch_vulnerabilities(SAMPLE_VULNERABLE_CODE, findings)
     assert "os.getenv" in patched
-    assert "%s" in patched
+    assert "?" in patched
 
     verification = agent.verify_patch(SAMPLE_VULNERABLE_CODE, patched)
     assert verification["status"] == "success"

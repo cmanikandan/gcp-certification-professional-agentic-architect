@@ -14,7 +14,8 @@ from agent_evaluator import (
     AgentOpsEvaluator,
     SAMPLE_GOLDEN_DATASET,
     mock_agent_runner,
-    CloudTraceSimulator
+    CloudTraceSimulator,
+    ContinuousEvaluationGate,
 )
 
 def test_cloud_trace_simulator():
@@ -32,4 +33,21 @@ def test_evalset_golden_evaluation():
     assert scorecard.tool_accuracy_pct == 100.0
     assert scorecard.argument_precision_pct == 100.0
     assert scorecard.faithfulness_score == 1.0
+    assert scorecard.task_completion_pct == 100.0
     assert scorecard.average_latency_ms >= 0.0
+    assert ContinuousEvaluationGate().decide(scorecard)["decision"] == "PROMOTE"
+
+
+def test_continuous_evaluation_blocks_regression():
+    def regressed_agent(prompt, tracer):
+        return {
+            "tool_called": "wrong_tool",
+            "tool_args": {},
+            "final_response": "Unsupported answer",
+        }
+
+    scorecard = AgentOpsEvaluator().evaluate_test_suite(SAMPLE_GOLDEN_DATASET, regressed_agent)
+    decision = ContinuousEvaluationGate().decide(scorecard)
+    assert decision["decision"] == "BLOCK_RELEASE"
+    assert "tool_accuracy" in decision["failed_checks"]
+    assert "task_completion" in decision["failed_checks"]

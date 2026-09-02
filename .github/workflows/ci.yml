@@ -30,3 +30,7 @@ jobs:
     - name: Run Test Suite across all 13 modules
       run: |
         python -m pytest modules/ -v
+
+    - name: Verify every lab run and cleanup contract
+      run: |
+        ./scripts/verify_labs.sh

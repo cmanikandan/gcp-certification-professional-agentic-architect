@@ -3,7 +3,7 @@ Module 03: Agentic Strategy & Model Selection
 Demonstrates:
 1. Automated Model Selection Rule Engine based on task requirements (Latency, Cost, Reasoning)
 2. Dynamic Thinking Budget Calibrator for Gemini 3.7 Flash
-3. Cost & Latency Estimation Pipeline
+3. Illustrative Cost & Latency Estimation Pipeline (not a live price catalog)
 """
 
 import os
@@ -127,6 +127,7 @@ def main():
     print("====================================================================")
     print("Module 03: Agentic Strategy & Model Selection Decision Matrix")
     print("====================================================================\n")
+    print("NOTE: Catalog prices/latencies are illustrative lab inputs; verify current product documentation before a real design.\n")
 
     selector = AgenticModelSelector()
 
@@ -148,7 +149,7 @@ def main():
         print(f"Scenario: {s['name']}")
         print(f"  -> Selected Model  : {res['selected_model']}")
         print(f"  -> Thinking Budget : {res['thinking_budget']} tokens")
-        print(f"  -> Estimated Cost  : ${cost['total_cost_usd']} / 15k input tokens")
+        print(f"  -> Illustrative Cost: ${cost['total_cost_usd']} / 15k input tokens")
         print(f"  -> Rationale       : {res['selection_rationale']}\n")
 
 if __name__ == "__main__":

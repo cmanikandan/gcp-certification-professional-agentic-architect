@@ -29,7 +29,21 @@ This module explores autonomous coding agents in Google Cloud, focusing on the *
 
 ---
 
+## High-yield exam checkpoint
+
+A sandbox is a boundary, not a prompt instruction. Validate canonical paths, restrict commands/network/credentials, patch the defect, and run tests inside the same boundary before accepting an agent-authored change.
+
+---
+
 ## 🚀 Hands-on Lab: Running the Module
+
+The supported entrypoint runs both the demonstration and this module's tests from any current directory:
+
+```bash
+./modules/02_antigravity_and_coding_agents/run_lab.sh
+```
+
+Equivalent manual commands:
 
 ```bash
 # Run the coding agent vulnerability remediation demo
@@ -43,6 +57,12 @@ pytest modules/02_antigravity_and_coding_agents/tests/ -v
 
 ## 🧹 Resource Cleanup / Teardown
 
+Always finish with the idempotent module cleanup:
+
+```bash
+./modules/02_antigravity_and_coding_agents/cleanup.sh
+```
+
 If you tested Cloud Workstations or GKE Sandbox clusters on your GCP project:
 
 ```bash
@@ -55,4 +75,3 @@ gcloud container clusters delete gke-sandbox-cluster --zone=$ZONE --project=$PRO
 # 3. Clean local scratch artifacts
 rm -rf __pycache__ .pytest_cache
 ```
-

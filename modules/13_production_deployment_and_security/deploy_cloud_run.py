@@ -40,6 +40,9 @@ if HAS_FASTAPI:
 
     @app.post("/v1/agents/invoke", response_model=AgentInvokeResponse)
     def invoke_agent(request: AgentInvokeRequest, authorization: Optional[str] = Header(None)):
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="OAuth 2.0 bearer token required.")
+
         # Model Armor Security Inspection
         if "ignore all previous instructions" in request.prompt.lower():
             raise HTTPException(status_code=400, detail="Blocked by Model Armor: Prompt Injection detected.")

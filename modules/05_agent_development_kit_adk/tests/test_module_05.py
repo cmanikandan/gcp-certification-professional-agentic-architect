@@ -39,6 +39,7 @@ def test_pydantic_schema_validation():
 
 def test_agent_plan_generation():
     agent = ADKEnterpriseAgent()
+    assert agent.client is None
     plan = agent.generate_architecture_plan("Build an enterprise multi-agent system")
     assert isinstance(plan, CloudArchitecturePlan)
     assert len(plan.recommendations) >= 3

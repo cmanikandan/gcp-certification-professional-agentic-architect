@@ -37,7 +37,21 @@ graph TD
 
 ---
 
+## High-yield exam checkpoint
+
+Start with requirements: quality, latency, tool use, data residency, customization, cost, and operations. Model names and prices change; the exam tests the decision logic more reliably than a memorized price table.
+
+---
+
 ## 🚀 Hands-on Lab: Running the Module
+
+The supported entrypoint runs both the demonstration and this module's tests from any current directory:
+
+```bash
+./modules/03_agentic_strategy_and_prototyping/run_lab.sh
+```
+
+Equivalent manual commands:
 
 ```bash
 # Run the model selection matrix and thinking budget estimator
@@ -51,10 +65,15 @@ pytest modules/03_agentic_strategy_and_prototyping/tests/ -v
 
 ## 🧹 Resource Cleanup / Teardown
 
+Always finish with the idempotent module cleanup:
+
+```bash
+./modules/03_agentic_strategy_and_prototyping/cleanup.sh
+```
+
 This module calculates cost and latency matrices in memory and does not leave persistent cloud infrastructure.
 
 ```bash
 # Clean local cache & Python bytecode
 rm -rf __pycache__ .pytest_cache
 ```
-

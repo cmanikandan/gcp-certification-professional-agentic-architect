@@ -19,7 +19,21 @@ This module explores enterprise database integration using the **Model Context P
 
 ---
 
+## High-yield exam checkpoint
+
+MCP exposes tools and context to an agent-facing client; A2A coordinates agents. A database MCP server must enforce identity, query policy, parameters, row/column controls, timeouts, and audit logs outside the model.
+
+---
+
 ## 🚀 Hands-on Lab: Running the Module
+
+The supported entrypoint runs both the demonstration and this module's tests from any current directory:
+
+```bash
+./modules/10_enterprise_databases_and_mcp/run_lab.sh
+```
+
+Equivalent manual commands:
 
 ```bash
 # Run the MCP database server and client demo
@@ -33,6 +47,12 @@ pytest modules/10_enterprise_databases_and_mcp/tests/ -v
 
 ## 🧹 Resource Cleanup / Teardown
 
+Always finish with the idempotent module cleanup:
+
+```bash
+./modules/10_enterprise_databases_and_mcp/cleanup.sh
+```
+
 If you provisioned live **BigQuery** test datasets or **Cloud SQL** PostgreSQL instances:
 
 ```bash
@@ -45,4 +65,3 @@ gcloud sql instances delete $INSTANCE_NAME --project=$PROJECT_ID --quiet
 # 3. Clean local cache & Python bytecode
 rm -rf __pycache__ .pytest_cache
 ```
-

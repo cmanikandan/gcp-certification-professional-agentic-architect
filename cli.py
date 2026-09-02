@@ -108,12 +108,12 @@ def run_module(module_num: int):
         return
 
     mod_dir, script, title = MODULE_DIRECTORIES[module_num]
-    script_path = Path(mod_dir) / script
+    script_path = Path(mod_dir) / "run_lab.sh"
 
     print(f"\n🚀 Launching Module {module_num:02d}: {title}")
     print(f"📁 Path: {script_path}\n" + "-"*80)
 
-    res = subprocess.run([sys.executable, str(script_path)])
+    res = subprocess.run(["bash", str(script_path)])
     print("-"*80)
     if res.returncode == 0:
         print(f"✅ Module {module_num:02d} executed successfully.")
@@ -172,6 +172,16 @@ def run_cleanup():
         print("❌ Cleanup script not found at scripts/cleanup_gcp_resources.sh")
         return 1
 
+
+def cleanup_module(module_num: int):
+    if module_num not in MODULE_DIRECTORIES:
+        print(f"❌ Error: Invalid module number {module_num}. Choose 1-13.")
+        return 1
+    mod_dir, _, title = MODULE_DIRECTORIES[module_num]
+    cleanup_script = Path(mod_dir) / "cleanup.sh"
+    print(f"\n🧹 Cleaning Module {module_num:02d}: {title}")
+    return subprocess.run(["bash", str(cleanup_script)]).returncode
+
 def check_environment():
     print("\n🔍 Verifying Environment & Google Cloud Configuration")
     print("="*80)
@@ -197,8 +207,9 @@ def interactive_menu():
         print("  2. 🧪 Run All Automated Tests (Pytest across all 13 modules)")
         print("  3. 📋 Take the Interactive Practice Exam Simulator")
         print("  4. 🔍 Check Environment & Gemini 3.7 Flash Configuration")
-        print("  5. 🧹 Clean Up / Teardown GCP Resources & Local Caches")
-        print("  6. 🚪 Exit\n")
+        print("  5. 🧹 Clean Up a Specific Module")
+        print("  6. 🧹 Global GCP Resource Teardown")
+        print("  7. 🚪 Exit\n")
 
         choice = input("Enter choice (1-6): ").strip()
         if choice == "1":
@@ -221,9 +232,16 @@ def interactive_menu():
             check_environment()
             input("\nPress Enter to return to menu...")
         elif choice == "5":
-            run_cleanup()
+            mod_choice = input("Enter module number to clean (1-13): ").strip()
+            if mod_choice.isdigit():
+                cleanup_module(int(mod_choice))
+            else:
+                print("Invalid input.")
             input("\nPress Enter to return to menu...")
         elif choice == "6":
+            run_cleanup()
+            input("\nPress Enter to return to menu...")
+        elif choice == "7":
             print("\nGood luck with your Google Cloud Certified Professional Agentic Architect exam! 🚀")
             break
         else:
@@ -236,6 +254,7 @@ def main():
     parser.add_argument("--exam", action="store_true", help="Run the practice exam simulator")
     parser.add_argument("--check-env", action="store_true", help="Verify environment setup")
     parser.add_argument("--cleanup", action="store_true", help="Clean up GCP resources and local caches")
+    parser.add_argument("--cleanup-module", type=int, help="Clean one module's local artifacts (1-13)")
 
     args = parser.parse_args()
 
@@ -249,6 +268,8 @@ def main():
         check_environment()
     elif args.cleanup:
         sys.exit(run_cleanup())
+    elif args.cleanup_module:
+        sys.exit(cleanup_module(args.cleanup_module))
     else:
         interactive_menu()
 

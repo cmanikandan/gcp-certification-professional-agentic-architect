@@ -12,7 +12,9 @@ if str(module_dir) not in sys.path:
 
 from agent_architecture_demo import (
     DeterministicStateMachine,
-    AutonomousAgentSimulator
+    AutonomousAgentSimulator,
+    EnterpriseDataSource,
+    EnterpriseDataConnectionPlanner,
 )
 
 def test_state_machine_happy_path():
@@ -49,3 +51,13 @@ def test_autonomous_agent_not_found():
     result = agent.execute_goal("Return item", "NON_EXISTENT")
     assert result["status"] == "completed"
     assert "could not locate" in result["final_response"].lower()
+
+
+def test_enterprise_multimodal_connection_plan():
+    plan = EnterpriseDataConnectionPlanner().plan([
+        EnterpriseDataSource("Claims", "pdf", "Cloud Storage", True),
+        EnterpriseDataSource("Damage photos", "image", "Cloud Storage", True),
+    ])
+    assert plan["ingestion_target"] == "Gemini Enterprise / Agent Search"
+    assert plan["modalities"] == ["image", "pdf"]
+    assert "Access-filtered retrieval" in plan["security_controls"]

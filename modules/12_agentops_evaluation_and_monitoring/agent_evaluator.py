@@ -32,6 +32,7 @@ class EvaluationScorecard:
     tool_accuracy_pct: float
     argument_precision_pct: float
     faithfulness_score: float
+    task_completion_pct: float
     average_latency_ms: float
     detailed_results: List[Dict[str, Any]]
 
@@ -61,6 +62,7 @@ class AgentOpsEvaluator:
         correct_tools = 0
         correct_args = 0
         faithfulness_total = 0.0
+        completed_tasks = 0
         latencies = []
 
         for test in golden_dataset:
@@ -88,12 +90,16 @@ class AgentOpsEvaluator:
             final_text = agent_output.get("final_response", "")
             faithfulness = 1.0 if test.ground_truth_fact.lower() in final_text.lower() else 0.5
             faithfulness_total += faithfulness
+            task_completed = tool_match and arg_match and faithfulness == 1.0
+            if task_completed:
+                completed_tasks += 1
 
             results.append({
                 "test_id": test.test_id,
                 "tool_match": tool_match,
                 "arg_match": arg_match,
                 "faithfulness": faithfulness,
+                "task_completed": task_completed,
                 "latency_ms": duration_ms,
                 "spans": tracer.spans
             })
@@ -104,9 +110,41 @@ class AgentOpsEvaluator:
             tool_accuracy_pct=round((correct_tools / total) * 100, 2) if total else 0.0,
             argument_precision_pct=round((correct_args / total) * 100, 2) if total else 0.0,
             faithfulness_score=round(faithfulness_total / total, 2) if total else 0.0,
+            task_completion_pct=round((completed_tasks / total) * 100, 2) if total else 0.0,
             average_latency_ms=round(sum(latencies) / total, 2) if total else 0.0,
             detailed_results=results
         )
+
+
+@dataclass(frozen=True)
+class EvaluationThresholds:
+    minimum_tool_accuracy_pct: float = 95.0
+    minimum_argument_precision_pct: float = 95.0
+    minimum_faithfulness_score: float = 0.9
+    minimum_task_completion_pct: float = 90.0
+    maximum_average_latency_ms: float = 1500.0
+
+
+class ContinuousEvaluationGate:
+    """Turns evaluation success criteria into an auditable release decision."""
+
+    def __init__(self, thresholds: Optional[EvaluationThresholds] = None):
+        self.thresholds = thresholds or EvaluationThresholds()
+
+    def decide(self, scorecard: EvaluationScorecard) -> Dict[str, Any]:
+        checks = {
+            "tool_accuracy": scorecard.tool_accuracy_pct >= self.thresholds.minimum_tool_accuracy_pct,
+            "argument_precision": scorecard.argument_precision_pct >= self.thresholds.minimum_argument_precision_pct,
+            "faithfulness": scorecard.faithfulness_score >= self.thresholds.minimum_faithfulness_score,
+            "task_completion": scorecard.task_completion_pct >= self.thresholds.minimum_task_completion_pct,
+            "latency": scorecard.average_latency_ms <= self.thresholds.maximum_average_latency_ms,
+        }
+        failed_checks = [name for name, passed in checks.items() if not passed]
+        return {
+            "decision": "PROMOTE" if not failed_checks else "BLOCK_RELEASE",
+            "checks": checks,
+            "failed_checks": failed_checks,
+        }
 
 # Sample Golden Dataset
 SAMPLE_GOLDEN_DATASET = [
@@ -158,7 +196,11 @@ def main():
     print(f"Tool Selection Accuracy     : {scorecard.tool_accuracy_pct}%")
     print(f"Argument Precision          : {scorecard.argument_precision_pct}%")
     print(f"Retrieval Faithfulness      : {scorecard.faithfulness_score} / 1.0")
+    print(f"Task Completion Rate        : {scorecard.task_completion_pct}%")
     print(f"Average Agent Latency       : {scorecard.average_latency_ms} ms\n")
+
+    release_decision = ContinuousEvaluationGate().decide(scorecard)
+    print("Continuous Evaluation Gate  :", release_decision["decision"], "\n")
 
     print("--- 2. Sample Distributed Trace Spans (Cloud Trace) ---")
     print(json.dumps(scorecard.detailed_results[0]["spans"], indent=2))

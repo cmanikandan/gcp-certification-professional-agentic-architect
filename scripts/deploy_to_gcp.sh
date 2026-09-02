@@ -29,8 +29,8 @@ gcloud run deploy "$SERVICE_NAME" \
     --project "$PROJECT_ID" \
     --region "$REGION" \
     --platform managed \
-    --allow-unauthenticated \
-    --set-env-vars "GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.7-flash},GEMINI_API_KEY=${GEMINI_API_KEY}" \
+    --no-allow-unauthenticated \
+    --set-env-vars "GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.7-flash}" \
     --min-instances 0 \
     --max-instances 5 \
     --memory 1Gi \

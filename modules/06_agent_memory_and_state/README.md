@@ -29,7 +29,21 @@ This module explores enterprise state management for autonomous AI agents on Goo
 
 ---
 
+## High-yield exam checkpoint
+
+Session state is scoped to the active interaction; Memory Bank supports durable cross-session recall. Apply consent, retention, deletion, access control, and relevance filtering to long-term memory.
+
+---
+
 ## 🚀 Hands-on Lab: Running the Module
+
+The supported entrypoint runs both the demonstration and this module's tests from any current directory:
+
+```bash
+./modules/06_agent_memory_and_state/run_lab.sh
+```
+
+Equivalent manual commands:
 
 ```bash
 # Run the Memory Bank and Session State lab
@@ -43,6 +57,12 @@ pytest modules/06_agent_memory_and_state/tests/ -v
 
 ## 🧹 Resource Cleanup / Teardown
 
+Always finish with the idempotent module cleanup:
+
+```bash
+./modules/06_agent_memory_and_state/cleanup.sh
+```
+
 If you provisioned a **Memorystore for Redis** instance or **Cloud Firestore** collection for persistent state testing:
 
 ```bash
@@ -55,4 +75,3 @@ gcloud firestore operations cancel $OPERATION_ID --project=$PROJECT_ID 2>/dev/nu
 # 3. Clean local cache & Python bytecode
 rm -rf __pycache__ .pytest_cache agent_memory_cache.json
 ```
-

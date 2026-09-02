@@ -28,7 +28,7 @@ def test_specialist_security_agent():
     )
     res = agent.execute_a2a_handoff(token)
     assert res["status"] == "COMPLETED"
-    assert "CRITICAL: Public internet exposure" in res["findings"][0]
+    assert "CRITICAL: Public exposure" in res["findings"][0]
     assert res["security_score"] > 0
 
 def test_supervisor_orchestration():

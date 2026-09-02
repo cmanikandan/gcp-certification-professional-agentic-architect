@@ -2,7 +2,7 @@
 Module 04: Optimizing Agent Behavior
 Demonstrates:
 1. System Instruction & Few-Shot Prompt Template Builder
-2. Chain-of-Thought (CoT) Scratchpad Structuring
+2. Concise decision-rationale examples without exposing private reasoning traces
 3. Real-Time Tool Loop / Cycle Detection Interceptor
 """
 
@@ -29,9 +29,14 @@ class PromptTemplateBuilder:
         return self
 
     def add_few_shot_example(self, user_input: str, expected_thought: str, expected_action: str) -> "PromptTemplateBuilder":
+        """Add an observable decision example.
+
+        ``expected_thought`` is retained for API compatibility, but it must be a
+        short decision basis, not a hidden chain-of-thought transcript.
+        """
         self.few_shot_examples.append({
             "input": user_input,
-            "thought": expected_thought,
+            "decision_basis": expected_thought,
             "action": expected_action
         })
         return self
@@ -45,7 +50,7 @@ class PromptTemplateBuilder:
                 examples_str += (
                     f"Example {i}:\n"
                     f"User: {ex['input']}\n"
-                    f"Chain-of-Thought: {ex['thought']}\n"
+                    f"Decision basis: {ex['decision_basis']}\n"
                     f"Action: {ex['action']}\n\n"
                 )
 
@@ -54,7 +59,8 @@ class PromptTemplateBuilder:
             f"Enterprise Context: {self.enterprise_context}\n\n"
             f"### MANDATORY GUARDRAILS:\n{guardrails_str}\n"
             f"{examples_str}"
-            f"Always output your reasoning inside <thought>...</thought> tags before calling tools or answering."
+            "Keep private reasoning private. Return only the selected action and a concise, "
+            "auditable decision rationale; never emit hidden scratchpad or <thought> tags."
         )
 
 class ReasoningLoopDetector:

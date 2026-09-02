@@ -12,7 +12,9 @@ if str(module_dir) not in sys.path:
 
 from skills_and_hooks_manager import (
     AntigravityCustomizationManager,
-    AgentSkill
+    AgentSkill,
+    SkillRegistrySimulator,
+    AgentsCLIModePolicy,
 )
 
 def test_skill_parsing_and_precedence():
@@ -69,3 +71,26 @@ def test_lifecycle_hooks():
 
     manager.execute_post_tool("query_db", {}, {})
     assert results == ["query_db"]
+
+
+def test_skill_registry_and_agents_cli_modes():
+    manager = AntigravityCustomizationManager()
+    skill = manager.parse_skill_file(
+        """---
+name: deploy-agent
+description: Controlled deployer.
+---
+Deploy only approved revisions.
+""",
+        source_location="workspace",
+    )
+    registry = SkillRegistrySimulator()
+    published = registry.publish(skill, "1.0.0", approved_by="platform-admin")
+    assert registry.resolve("deploy-agent", "1.0.0") == published
+    assert len(published.digest) == 12
+
+    policy = AgentsCLIModePolicy(
+        agent_mode_tools=["inspect"], human_mode_tools=["inspect", "deploy"]
+    )
+    assert policy.can_invoke("agent", "deploy") is False
+    assert policy.can_invoke("human", "deploy") is True

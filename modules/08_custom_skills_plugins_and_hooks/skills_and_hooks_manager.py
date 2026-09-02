@@ -8,6 +8,7 @@ Demonstrates:
 
 import os
 import re
+import hashlib
 from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Callable
 
@@ -24,6 +25,47 @@ class AgentSkill:
     content: str
     source_location: str  # workspace, declared, global, builtin
     priority_rank: int
+
+
+@dataclass(frozen=True)
+class RegisteredSkillVersion:
+    name: str
+    version: str
+    digest: str
+    approved_by: str
+
+
+class SkillRegistrySimulator:
+    """Versions and approves skills before Agents CLI can consume them."""
+
+    def __init__(self):
+        self.versions: Dict[str, Dict[str, RegisteredSkillVersion]] = {}
+
+    def publish(self, skill: AgentSkill, version: str, approved_by: str) -> RegisteredSkillVersion:
+        if not approved_by.strip():
+            raise ValueError("A governed skill version requires an approver")
+        digest = hashlib.sha256(skill.content.encode("utf-8")).hexdigest()[:12]
+        registered = RegisteredSkillVersion(skill.name, version, digest, approved_by)
+        self.versions.setdefault(skill.name, {})[version] = registered
+        return registered
+
+    def resolve(self, name: str, version: str) -> Optional[RegisteredSkillVersion]:
+        return self.versions.get(name, {}).get(version)
+
+
+class AgentsCLIModePolicy:
+    """Separates autonomous agent permissions from interactive human permissions."""
+
+    def __init__(self, agent_mode_tools: List[str], human_mode_tools: List[str]):
+        self.allowed = {
+            "agent": set(agent_mode_tools),
+            "human": set(human_mode_tools),
+        }
+
+    def can_invoke(self, mode: str, tool_name: str) -> bool:
+        if mode not in self.allowed:
+            raise ValueError("mode must be 'agent' or 'human'")
+        return tool_name in self.allowed[mode]
 
 class AntigravityCustomizationManager:
     """Manages skill discovery, progressive disclosure, and lifecycle hooks."""
@@ -154,6 +196,18 @@ description: Enterprise-hardened Cloud Run ops tool with PAB verification.
 
     manager.execute_post_tool("deploy_service", {"name": "auth-gateway"}, {"status": "SUCCESS"})
     print("Telemetry Log   :", telemetry_log)
+
+    # 4. Govern a versioned skill and enforce Agents CLI execution modes
+    print("\n--- 4. Testing Skill Registry & Agents CLI Modes ---")
+    registry = SkillRegistrySimulator()
+    version = registry.publish(active_skill, version="1.0.0", approved_by="platform-admin")
+    print(f"Published Skill : {version.name}@{version.version} ({version.digest})")
+    modes = AgentsCLIModePolicy(
+        agent_mode_tools=["inspect_service"],
+        human_mode_tools=["inspect_service", "deploy_service"],
+    )
+    print("Agent mode can deploy:", modes.can_invoke("agent", "deploy_service"))
+    print("Human mode can deploy:", modes.can_invoke("human", "deploy_service"))
 
 if __name__ == "__main__":
     main()

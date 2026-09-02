@@ -36,7 +36,11 @@ class AntigravitySandboxValidator:
         """Ensures file paths reside strictly within allowed workspace root."""
         abs_target = os.path.abspath(target_path)
         if not self.bypass_sandbox:
-            if not abs_target.startswith(self.allowed_root):
+            try:
+                inside_workspace = os.path.commonpath([self.allowed_root, abs_target]) == self.allowed_root
+            except ValueError:
+                inside_workspace = False
+            if not inside_workspace:
                 raise SandboxPolicyViolation(
                     f"Access Denied: Path '{abs_target}' is outside workspace '{self.allowed_root}'"
                 )
@@ -92,7 +96,7 @@ class CodingAgentRefactorer:
         # Fix SQL Injection -> Use parameterized queries
         patched_code = re.sub(
             r'cursor\.execute\(f"SELECT \* FROM users WHERE username = \'{username}\'"\)',
-            'cursor.execute("SELECT * FROM users WHERE username = %s", (username,))',
+            'cursor.execute("SELECT * FROM users WHERE username = ?", (username,))',
             patched_code
         )
 

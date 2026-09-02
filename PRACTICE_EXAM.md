@@ -1,6 +1,6 @@
 # Google Cloud Certified Professional Agentic Architect — High-Yield Practice Exam
 
-This practice exam contains scenario-based questions meticulously designed to reflect the real exam structure, question depth, and cognitive difficulty across all 5 domains.
+This unofficial practice set uses the objectives and domain weights in the official exam guide. It is a study aid, not a claim about the live exam's exact wording, length, or difficulty.
 
 ---
 
@@ -83,7 +83,7 @@ This practice exam contains scenario-based questions meticulously designed to re
 ## Domain 3: Developing Custom Agents (~33%)
 
 ### Question 5
-**Scenario**: You are architecting a real-time financial trading assistant using the Agent Development Kit (ADK). The agent must analyze market feeds, detect trading signals using complex mathematical formulations, and execute trades via an internal REST API. The system requires ultra-low latency (< 1.5 seconds) while maintaining high reasoning fidelity and zero hallucination on API parameters.
+**Scenario**: You are architecting a real-time financial trading assistant using the Agent Development Kit (ADK). The agent must analyze market feeds, detect trading signals, and propose calls to an internal REST API. The system requires low latency and machine-validated API parameter shapes; application code will independently enforce business rules, authorization, and human approval.
 
 **Which model and parameter configuration should you select?**
 - **A)** Gemini 2.5 Pro with a static thinking budget of 32,000 tokens and zero temperature.
@@ -93,7 +93,7 @@ This practice exam contains scenario-based questions meticulously designed to re
 
 > **Correct Answer: B**
 > **Explanation**:
-> - **Why B is correct**: **Gemini 3.7 Flash** provides high reasoning capability at ultra-fast speeds and low cost. Configuring a moderate dynamic thinking budget (1,024-2,048 tokens) gives the model the necessary reasoning capacity to verify complex formulas, while Pydantic `response_schema` guarantees type-safe, deterministic API parameter generation.
+> - **Why B is correct**: A latency-oriented tool-capable model with a bounded thinking budget and a Pydantic `response_schema` is the best fit among these choices. The schema validates structure and types; it does not guarantee factual correctness or authorize a trade.
 > - **Why A is incorrect**: Gemini 2.5 Pro with a 32K thinking budget will incur multi-second latencies, violating the 1.5-second SLA.
 > - **Why C is incorrect**: Gemma 2 2B lacks the complex multi-step reasoning and function calling reliability required for financial trading operations.
 > - **Why D is incorrect**: Disabling thinking and using unstructured text will lead to hallucinated parameters and unreliable tool execution.
@@ -129,7 +129,7 @@ This practice exam contains scenario-based questions meticulously designed to re
 
 > **Correct Answer: B**
 > **Explanation**:
-> - **Why B is correct**: **Google Cloud MCP Toolbox for Databases** is Google Cloud's official standard for exposing BigQuery, Cloud SQL, AlloyDB, and Spanner to AI agents via the open Model Context Protocol. It handles schema introspection, parameterized query execution, connection pooling, and error propagation out of the box.
+> - **Why B is correct**: **Google Cloud MCP Toolbox for Databases** exposes supported databases to agents through MCP with reusable tool definitions and database integration patterns. You must still configure identity, least privilege, query policy, timeouts, and auditing.
 > - **Why A is incorrect**: Exposing connection strings and running raw shell commands is a severe security vulnerability.
 > - **Why C is incorrect**: Static CSV exports provide stale data and do not support dynamic real-time querying.
 > - **Why D is incorrect**: Authoring custom functions for every query variation is unmaintainable and prevents dynamic query generation.
@@ -195,7 +195,7 @@ This practice exam contains scenario-based questions meticulously designed to re
 ## Domain 5: Securing and Governing Agentic Workflows (~15%)
 
 ### Question 11
-**Scenario**: An enterprise financial services firm is deploying an autonomous agent that can query account balances and initiate wire transfers up to $10,000. Corporate risk policies dictate that: (1) The agent must never initiate transfers over $1,000 without verified manager sign-off. (2) Prompt injection attacks in user chats must be intercepted before reaching the LLM. (3) The agent must only access the specific banking API endpoint within its VPC.
+**Scenario**: An enterprise financial services firm is deploying an autonomous agent that can query account balances and initiate wire transfers up to $10,000. Corporate risk policies dictate that: (1) The agent must never initiate transfers over $1,000 without verified manager sign-off. (2) Prompt injection attacks must be inspected. (3) The agent identity must have a resource ceiling that excludes all unapproved projects and tools.
 
 **Which security architecture fulfills all compliance requirements?**
 - **A)** Implement **Agent Gateway** with **Model Armor** for prompt injection inspection, enforce a **Principal Access Boundary (PAB)** on the agent's **Agent Identity**, and add a **Human-In-The-Loop (HITL)** approval gate for transactions > $1,000.
@@ -207,7 +207,7 @@ This practice exam contains scenario-based questions meticulously designed to re
 > **Explanation**:
 > - **Why A is correct**:
 >   - **Model Armor** on **Agent Gateway** intercepts prompt injection and jailbreak attempts before LLM processing.
->   - **Agent Identity** with **Principal Access Boundary (PAB)** restricts the agent's IAM reach to strictly authorized VPC resources.
+>   - **Agent Identity** with a **Principal Access Boundary (PAB)** caps the resources the principal can reach; normal IAM grants are still required. VPC Service Controls is a separate perimeter control.
 >   - **Human-In-The-Loop (HITL)** deterministic gates pause execution and require authenticated human approval for high-risk tool operations.
 > - **Why B is incorrect**: Python regex filters are easily bypassed with prompt obfuscation and do not provide enterprise IAM scoping or HITL governance.
 > - **Why C is incorrect**: Admin service accounts violate least privilege, and asking users for passwords in chat prompts is a critical security vulnerability.
@@ -230,3 +230,57 @@ This practice exam contains scenario-based questions meticulously designed to re
 > - **Why A is incorrect**: Cloud Armor protects against DDoS and Layer 7 web attacks (SQLi, XSS), but does not inspect or redact unstructured semantic PII in LLM payloads.
 > - **Why C is incorrect**: Secret Manager stores API keys and database credentials, not real-time payload sanitization.
 > - **Why D is incorrect**: Cloud KMS handles cryptographic key encryption at rest/transit, not contextual data de-identification.
+
+---
+
+## Additional Cross-Domain Scenarios
+
+### Question 13 - Select two
+
+**Scenario**: A team is promoting a RAG agent after it passes response-style reviews. In production, users report that answers are fluent but cite irrelevant documents. Which two changes most directly address the release failure?
+
+- **A)** Add retrieval relevance/groundedness cases to a golden dataset and gate releases on them.
+- **B)** Increase Cloud Run CPU so the model can write longer answers.
+- **C)** Trace retrieval candidates, similarity scores, reranking, citations, and end-to-end latency.
+- **D)** Replace all human-authored questions with synthetic easy questions.
+- **E)** Disable citations because users find them distracting.
+
+> **Correct Answers: A and C**
+> **Explanation**: The failure is retrieval quality, not prose style or compute. A representative golden set makes it testable; traces identify whether candidate generation, filters, reranking, or latency caused the miss.
+
+### Question 14
+
+**Scenario**: An agent needs managed sessions, long-term memory, agent-specific evaluation integration, and the least operational overhead. It does not require custom Kubernetes scheduling.
+
+- **A)** GKE Autopilot
+- **B)** Agent Runtime
+- **C)** A Compute Engine managed instance group
+- **D)** Cloud Run jobs
+
+> **Correct Answer: B**
+> **Explanation**: Agent Runtime is the agent-specific managed choice. Cloud Run is a strong portable HTTP/container option when managed agent features are not the deciding requirement; GKE is justified by Kubernetes-level control.
+
+### Question 15 - Select two
+
+**Scenario**: A registered billing agent presents a valid OAuth token to Agent Gateway but requests an unapproved `delete_invoice` tool. Which two statements are correct?
+
+- **A)** The valid token requires the gateway to allow the request.
+- **B)** Agent Gateway should deny the tool through capability policy and audit the decision.
+- **C)** Agent Registry metadata can define the approved agent version, identity, owner, and capabilities used by the gateway.
+- **D)** Model Armor should grant the missing tool permission after inspecting the prompt.
+- **E)** A PAB grants `delete_invoice` because it is narrower than project admin.
+
+> **Correct Answers: B and C**
+> **Explanation**: Authentication is not authorization. Registry supplies governed inventory/capability metadata, while Gateway enforces traffic policy. Model Armor inspects content; PAB caps resources and does not grant a permission.
+
+### Question 16
+
+**Scenario**: A supervisor agent needs to delegate a route-planning task to a separately deployed specialist. The specialist itself needs access to a map database tool. Which protocol mapping is correct?
+
+- **A)** Use MCP for the supervisor-to-specialist handoff and A2A for the specialist-to-database call.
+- **B)** Use A2A for the supervisor-to-specialist handoff and MCP for specialist tool/database access.
+- **C)** Use OAuth for both message semantics and database schema discovery.
+- **D)** Use Agent Registry as the message transport for both calls.
+
+> **Correct Answer: B**
+> **Explanation**: A2A handles agent-to-agent delegation and handoff. MCP exposes tools/context to an agent-facing client. OAuth can authenticate calls, and Registry can describe agents, but neither replaces the interaction protocol.

@@ -24,7 +24,9 @@ def test_prompt_builder():
     assert "Test Agent" in prompt
     assert "Safety Rule 1" in prompt
     assert "FEW-SHOT DEMONSTRATIONS" in prompt
-    assert "<thought>" in prompt
+    assert "Decision basis" in prompt
+    assert "never emit hidden scratchpad" in prompt
+    assert "<thought>...</thought>" not in prompt
 
 def test_loop_detector_repetitive_calls():
     detector = ReasoningLoopDetector(max_consecutive_duplicates=2, max_total_turns=5)

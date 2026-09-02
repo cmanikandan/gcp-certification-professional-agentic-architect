@@ -19,7 +19,21 @@ This module covers multi-agent design patterns and inter-agent communication pro
 
 ---
 
+## High-yield exam checkpoint
+
+Sequential flows maximize dependency control, parallel flows reduce latency for independent work, supervisors route dynamically, and graphs model explicit complex state. Each handoff needs identity, capability policy, bounded context, timeout, and traceability.
+
+---
+
 ## 🚀 Hands-on Lab: Running the Module
+
+The supported entrypoint runs both the demonstration and this module's tests from any current directory:
+
+```bash
+./modules/11_multi_agent_orchestration_a2a/run_lab.sh
+```
+
+Equivalent manual commands:
 
 ```bash
 # Run the multi-agent orchestration and A2A handoff lab
@@ -33,10 +47,15 @@ pytest modules/11_multi_agent_orchestration_a2a/tests/ -v
 
 ## 🧹 Resource Cleanup / Teardown
 
+Always finish with the idempotent module cleanup:
+
+```bash
+./modules/11_multi_agent_orchestration_a2a/cleanup.sh
+```
+
 This module orchestrates simulated multi-agent handoffs in memory.
 
 ```bash
 # Clean local cache & Python bytecode
 rm -rf __pycache__ .pytest_cache
 ```
-

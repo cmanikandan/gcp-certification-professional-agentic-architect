@@ -29,7 +29,7 @@ Google Cloud provides low-code agent creation through **Gemini Enterprise Agent 
 - **Pages**: Fundamental state nodes representing distinct conversation stages. Each page maintains its own state, entry fulfillment, and active parameters.
 - **Transition Routes**: Conditional branches triggered by user intents, parameter matching, or agentic condition evaluation (e.g., `if $session.params.order_id != null`).
 - **Event Handlers**: Built-in fallback routes triggered by system events (e.g., `sys.no-match-default`, `sys.no-input-default`, webhook timeout).
-- **Prompt Templates**: In-console few-shot and Chain-of-Thought (CoT) system instructions formatted to steer low-code agents without writing Python code.
+- **Prompt Templates**: In-console few-shot and chain-of-thought (CoT) patterns can steer low-code agents without Python. Treat private model scratchpads as non-observable; log concise decisions, tool calls, results, and policy outcomes instead.
 
 ### 1.2 Enterprise Data Grounding & Multimodal Ingestion
 - **Agent Search (Vertex AI Search)**: Indexes unstructured documents (PDFs, HTML, Confluence, Google Drive) and provides semantic retrieval with automatic snippet citations.
@@ -116,7 +116,7 @@ Agent evaluation differs fundamentally from traditional static ML evaluation bec
 #### Core Metrics:
 1. **Tool Selection Accuracy**: Did the agent pick the correct tool from the available schema?
 2. **Argument Precision**: Were the extracted function arguments valid, type-safe, and complete?
-3. **Retrieval Faithfulness**: Are the agent's assertions grounded strictly in retrieved context (zero hallucination)?
+3. **Retrieval Faithfulness**: Are the agent's assertions supported by the retrieved context, with unsupported-claim rate measured explicitly?
 4. **Answer Relevance**: Did the final response directly address user intent without extraneous commentary?
 5. **Task Completion Rate**: Percentage of multi-turn goals resolved without human intervention or failure.
 
@@ -143,7 +143,7 @@ Agent evaluation differs fundamentally from traditional static ML evaluation bec
 
 #### Key Governance Components:
 - **Agent Identity**: Dedicated IAM principal representing the autonomous agent, independent of the invoking end-user.
-- **Principal Access Boundary (PAB)**: IAM boundary ensuring the agent cannot elevate permissions or access resources outside its designated VPC / project boundary.
+- **Principal Access Boundary (PAB)**: IAM boundary that caps the resources a principal can access. It does not grant permissions and is distinct from VPC Service Controls.
 - **Agent Gateway**: Reverse proxy enforcing authentication, rate-limiting, audit logging, and payload validation.
 - **Model Armor**: Real-time security filter guarding against prompt injections, system prompt exfiltration, malicious tool hijacking, and PII leakage (integrated with Sensitive Data Protection / Cloud DLP).
 - **Human-in-the-Loop (HITL)**: Deterministic policy requiring interactive human approval before executing irreversible actions (e.g., executing database mutations, sending financial wires).

@@ -24,11 +24,19 @@ The **Agent Gateway** is the chokepoint. It sits in front of your agents, interc
 
 ```mermaid
 graph LR
-    User[End User] -->|1. Request (User Token)| Gateway[Agent Gateway]
-    Gateway -->|2. Enforce Policy| Gateway
-    Gateway -->|3. Lookup| Registry[Agent Registry]
-    Gateway -->|4. Propagate Identity| Agent[Deployed Agent]
-    Agent -->|5. ACL-Aware Query| Data[(Enterprise Data)]
+    User["End User"] -->|"1. Request + user token"| Gateway["Agent Gateway"]
+
+    subgraph GW["Gateway responsibilities"]
+        Gateway --> Policy["2. Enforce policy<br/>quotas · authz · logging"]
+    end
+
+    Policy -->|"3. Look up agent"| Registry[("Agent Registry")]
+    Policy -->|"4. Propagate identity"| Agent["Deployed agent"]
+    Agent -->|"5. ACL-aware query"| Data[("Enterprise data")]
+
+    style Gateway fill:#e8f0fe,stroke:#1a73e8
+    style Registry fill:#fef7e0,stroke:#ea8600
+    style Data fill:#e6f4ea,stroke:#137333
 ```
 
 1.  **Agent Registry:** Developers publish their agents and MCP servers to the Registry.

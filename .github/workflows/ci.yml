@@ -67,3 +67,26 @@ jobs:
 
       - name: Run every cleanup script
         run: python cli.py --cleanup
+
+  diagrams:
+    name: Mermaid diagrams render
+    runs-on: ubuntu-latest
+
+    # tests/test_diagrams.py lints the common mistakes with no dependencies.
+    # This job is the authoritative check: it runs the same parser GitHub uses,
+    # so a diagram that would show "Unable to render rich display" fails here
+    # first.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install mermaid
+        run: npm install --no-save mermaid jsdom
+
+      - name: Parse every diagram
+        run: node scripts/validate_mermaid.mjs

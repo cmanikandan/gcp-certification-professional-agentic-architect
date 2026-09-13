@@ -16,6 +16,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# Node — only needed to run scripts/validate_mermaid.mjs locally
+node_modules/
+package-lock.json
+
 # Testing & Coverage
 .pytest_cache/
 .coverage

@@ -154,6 +154,50 @@ Three to five questions with answers in a collapsed `<details>` block.
 
 ---
 
+## 4a. Diagram rules
+
+Every lab README needs at least one `mermaid` diagram in section 3. A diagram
+that fails to parse is worse than no diagram: GitHub replaces it with a red
+*"Unable to render rich display"* box, so the reader loses the explanation and
+trusts the page less.
+
+> [!IMPORTANT]
+> **Quote any label containing a bracket.** Mermaid reads an unquoted `(` as the
+> start of a node shape, not as a literal character. This is by far the most
+> common way a diagram breaks.
+
+```markdown
+<!-- Parse error: the "(" is read as a node shape -->
+User[End User] -->|1. Request (User Token)| Gateway[Agent Gateway]
+
+<!-- Correct -->
+User["End User"] -->|"1. Request (User Token)"| Gateway["Agent Gateway"]
+```
+
+The same applies to `[`, `]`, `{` and `}`. Quoting a label is always safe, so
+when in doubt, quote it.
+
+Other rules:
+- Use `<br/>` for line breaks inside labels. Avoid other HTML.
+- Do not point a node at itself (`Gateway --> Gateway`); it renders as an
+  unreadable loop. Add a distinct node for the step instead.
+- Declare a known diagram type on the first line (`graph`, `flowchart`,
+  `sequenceDiagram`, `classDiagram`, `pie`, ...). A typo silently produces an
+  unrenderable block.
+
+**Check before you commit:**
+
+```bash
+# Fast, no dependencies - catches the common mistakes.
+python -m pytest tests/test_diagrams.py -q
+
+# Authoritative - runs the same parser GitHub uses.
+npm install --no-save mermaid jsdom
+node scripts/validate_mermaid.mjs
+```
+
+---
+
 ## 5. Standard `run_lab.sh`
 
 ```bash

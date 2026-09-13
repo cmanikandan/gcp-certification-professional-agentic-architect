@@ -1,5 +1,7 @@
 # Track 5: Securing and governing agentic workflows
 
+> **Personal study repo — not affiliated with Google Cloud.** Official guidance: [cloud.google.com/learn/certification/agentic-architect](https://cloud.google.com/learn/certification/agentic-architect) · [Disclaimer](../../DISCLAIMER.md)
+
 This track covers exam Section 5 (~15% of the exam). It focuses on ensuring autonomous agents operate securely, with the correct identity, and within strict governance boundaries.
 
 ## Labs in this track

@@ -6,6 +6,8 @@
 
 ---
 
+> **Personal study repo — not affiliated with Google Cloud.** Official guidance: [cloud.google.com/learn/certification/agentic-architect](https://cloud.google.com/learn/certification/agentic-architect) · [Disclaimer](../../../DISCLAIMER.md)
+
 ## 1. Exam objectives covered
 
 > Quoted verbatim from the official exam guide:

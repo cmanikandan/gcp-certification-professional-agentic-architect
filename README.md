@@ -1,5 +1,13 @@
 # Google Cloud Professional Agentic Architect — Beta Exam Prep
 
+> [!IMPORTANT]
+> **Personal, unofficial repository.** This is a personal study project. It is **not
+> affiliated with, endorsed by, or maintained by Google or Google Cloud**. For official
+> guidance — exam objectives, registration, policies, and the current exam guide — refer to
+> **[cloud.google.com/learn/certification/agentic-architect](https://cloud.google.com/learn/certification/agentic-architect)**.
+> Where anything here disagrees with the official source, **the official source is correct**.
+> See [`DISCLAIMER.md`](DISCLAIMER.md) for the full disclaimer.
+
 A hands-on study repository for the **Google Cloud Certified — Professional Agentic Architect** beta
 exam. Eighteen independent labs, structured to mirror the five scored sections of the
 [official exam guide](https://services.google.com/fh/files/misc/professional_agentic_architect_exam_guide_english.pdf)

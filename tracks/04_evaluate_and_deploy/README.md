@@ -1,5 +1,7 @@
 # Track 4 — Evaluating and deploying agentic workflows
 
+> **Personal study repo — not affiliated with Google Cloud.** Official guidance: [cloud.google.com/learn/certification/agentic-architect](https://cloud.google.com/learn/certification/agentic-architect) · [Disclaimer](../../DISCLAIMER.md)
+
 This track covers approximately 22% of the Google Cloud Certified Professional Agentic Architect (beta) exam.
 
 It is broken down into three labs:

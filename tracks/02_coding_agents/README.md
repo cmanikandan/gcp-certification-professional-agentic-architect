@@ -1,5 +1,7 @@
 # Track 2 — Using coding agents for application development
 
+> **Personal study repo — not affiliated with Google Cloud.** Official guidance: [cloud.google.com/learn/certification/agentic-architect](https://cloud.google.com/learn/certification/agentic-architect) · [Disclaimer](../../DISCLAIMER.md)
+
 **Exam Section:** 2 (~17% of the exam)
 
 This track covers how to harness autonomous coding agents inside Google Cloud to build applications, while securing their access boundaries and execution environments. A core principle of the GCP Agentic Architect exam is that agents write and run code—but they must be strictly governed and cleanly integrated.

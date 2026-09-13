@@ -1,5 +1,7 @@
 # Track 3 — Developing Custom Agents
 
+> **Personal study repo — not affiliated with Google Cloud.** Official guidance: [cloud.google.com/learn/certification/agentic-architect](https://cloud.google.com/learn/certification/agentic-architect) · [Disclaimer](../../DISCLAIMER.md)
+
 **Exam Section:** 3. Developing custom agents (~33% of the exam)
 
 This is the single largest and most critical section of the Professional Agentic Architect exam. It covers the core coding primitives used to construct, coordinate, and scale agentic applications.

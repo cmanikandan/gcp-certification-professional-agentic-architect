@@ -1,5 +1,7 @@
 # VERIFIED FACTS — ground truth for the repo rewrite
 
+> **Personal study repo — not affiliated with Google Cloud.** Official guidance: [cloud.google.com/learn/certification/agentic-architect](https://cloud.google.com/learn/certification/agentic-architect) · [Disclaimer](../DISCLAIMER.md)
+
 > [!IMPORTANT]
 > Every fact here was verified by **direct machine inspection**, not by recall or web summary.
 > Verification methods: `L` = live Gemini API `ListModels`, `P` = PyPI JSON API,

@@ -1,5 +1,7 @@
 # Track 1 — Building agents using low-code tools
 
+> **Personal study repo — not affiliated with Google Cloud.** Official guidance: [cloud.google.com/learn/certification/agentic-architect](https://cloud.google.com/learn/certification/agentic-architect) · [Disclaimer](../../DISCLAIMER.md)
+
 **Exam weight:** ~13%
 **Key products:** Gemini Enterprise, Agent Designer, CX Agent Studio
 

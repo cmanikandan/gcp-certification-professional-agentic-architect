@@ -35,6 +35,9 @@ REQUIRED_SECTION_PREFIXES = [
 
 REQUIRED_FILES = ["README.md", "lab.py", "run_lab.sh", "cleanup.sh"]
 
+# Every lab is deep-linkable, so every lab has to point back at the real thing.
+OFFICIAL_CERT_URL = "https://cloud.google.com/learn/certification/agentic-architect"
+
 
 def _lab_dirs() -> list[Path]:
     if not TRACKS_DIR.is_dir():
@@ -125,6 +128,26 @@ def test_readme_states_objectives_time_and_cost(lab: Path) -> None:
     text = readme.read_text(encoding="utf-8")
     for marker in ("Exam section:", "Objectives covered:", "Time:", "Cost:"):
         assert marker in text, f"{lab.name}/README.md does not state '{marker}'"
+
+
+@pytest.mark.parametrize("lab", LAB_DIRS, ids=LAB_IDS)
+def test_readme_points_at_the_official_certification_page(lab: Path) -> None:
+    """Labs are read standalone and deep-linked, so each must disclaim on its own.
+
+    Nobody should be able to land on a lab from a search result and mistake this
+    personal repository for official Google Cloud material.
+    """
+    readme = lab / "README.md"
+    if not readme.is_file():
+        pytest.skip("README missing; covered by test_lab_has_every_required_file")
+
+    text = readme.read_text(encoding="utf-8")
+    assert "not affiliated with Google Cloud" in text, (
+        f"{lab.name}/README.md does not disclaim affiliation"
+    )
+    assert OFFICIAL_CERT_URL in text, (
+        f"{lab.name}/README.md does not link {OFFICIAL_CERT_URL}"
+    )
 
 
 @pytest.mark.parametrize("lab", LAB_DIRS, ids=LAB_IDS)

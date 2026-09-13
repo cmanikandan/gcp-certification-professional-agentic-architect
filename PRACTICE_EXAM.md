@@ -1,5 +1,14 @@
 # Google Cloud Certified Professional Agentic Architect — High-Yield Practice Exam
 
+> [!IMPORTANT]
+> **Personal, unofficial repository.** This is a personal study project. It is **not
+> affiliated with, endorsed by, or maintained by Google or Google Cloud**. These questions
+> were written by the repository author — they are **not real exam questions** and are not
+> drawn from the live exam. For official guidance — exam objectives, registration, policies,
+> and the current exam guide — refer to
+> **[cloud.google.com/learn/certification/agentic-architect](https://cloud.google.com/learn/certification/agentic-architect)**.
+> See [`DISCLAIMER.md`](DISCLAIMER.md) for the full disclaimer.
+
 This unofficial practice set uses the objectives and domain weights in the official exam guide. It is a study aid, not a claim about the live exam's exact wording, length, or difficulty. A score of ≥80% across all domains indicates strong readiness for the live exam.
 
 <details><summary><b>How to use this exam</b></summary>

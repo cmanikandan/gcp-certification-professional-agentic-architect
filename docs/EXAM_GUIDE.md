@@ -1,11 +1,13 @@
 # Exam guide — objectives, weights, and where each is covered
 
 > [!IMPORTANT]
-> **Unofficial study material.** This repository is not endorsed by or affiliated
-> with Google Cloud. The objectives below are quoted from the official
-> [Professional Agentic Architect exam guide][guide]. Always confirm the current
-> guide, logistics, and registration details at
-> [cloud.google.com/certification](https://cloud.google.com/certification).
+> **Personal, unofficial repository.** This is a personal study project. It is **not
+> affiliated with, endorsed by, or maintained by Google or Google Cloud**. The objectives
+> below are quoted from the official [Professional Agentic Architect exam guide][guide].
+> Always confirm the current guide, logistics, and registration details at
+> **[cloud.google.com/learn/certification/agentic-architect](https://cloud.google.com/learn/certification/agentic-architect)**.
+> Where anything here disagrees with the official source, **the official source is correct**.
+> See [`DISCLAIMER.md`](../DISCLAIMER.md) for the full disclaimer.
 
 [guide]: https://services.google.com/fh/files/misc/professional_agentic_architect_exam_guide_english.pdf
 

@@ -1,0 +1,24 @@
+{
+  "eval_set_id": "123",
+  "name": "Math Agent Golden Set",
+  "description": "Tests for the math agent.",
+  "eval_cases": [
+    {
+      "eval_id": "1",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [
+              {
+                "text": "hi"
+              }
+            ],
+            "role": "user"
+          }
+        }
+      ],
+      "final_session_state": {}
+    }
+  ]
+}

@@ -1,215 +1,254 @@
-# Google Cloud Certified Professional Agentic Architect — Study & Hands-On Lab Repository 🚀
+# Google Cloud Professional Agentic Architect — Beta Exam Prep
+
+A hands-on study repository for the **Google Cloud Certified — Professional Agentic Architect** beta
+exam. Eighteen independent labs, structured to mirror the five scored sections of the
+[official exam guide](https://services.google.com/fh/files/misc/professional_agentic_architect_exam_guide_english.pdf)
+exactly.
+
+Every lab runs **offline and free by default**. Every lab has an **opt-in live path** that touches
+real Google Cloud. Every technical claim in this repo was verified against the live Gemini API and
+against an actual installation of the Agent Development Kit — see [`docs/VERIFIED_FACTS.md`](docs/VERIFIED_FACTS.md).
+
+---
+
+## What this exam actually tests
+
+The exam is not a recall test. It is a **judgement** test: given a scenario, pick the right
+abstraction, the right runtime, the right guardrail. The labs are built around that, so each one
+ends with a "the decision that matters" table rather than a glossary.
+
+```mermaid
+pie showData
+    title Exam weighting by section
+    "S3 Developing custom agents" : 33
+    "S4 Evaluating and deploying" : 22
+    "S2 Coding agents" : 17
+    "S5 Securing and governing" : 15
+    "S1 Low-code tools" : 13
+```
 
 > [!IMPORTANT]
-> **Unofficial Certification Guide & Training Disclaimer**:
-> This repository is an **independent, unofficial** study and hands-on preparation guide developed for technical practitioners preparing for the *Google Cloud Certified Professional Agentic Architect (Beta)* exam. It is **not** officially endorsed, sponsored, or affiliated with Google Cloud.
-> 
-> - For official certification details, requirements, and authoritative exam guide objectives, please refer to the official [Google Cloud Certification Portal](https://cloud.google.com/certification).
-> - For official on-demand training courses, interactive labs, and skill badges, please visit [Google Cloud Skills Boost](https://www.cloudskillsboost.google/) (and the official `skills.google` learning paths).
+> Section 3 is **33% of the exam** — more than double any other single section except deployment.
+> Track 3 has six labs for that reason. If your time is short, do Track 3 and Track 4 first;
+> together they are **55%** of the paper.
 
-Welcome to the definitive, hands-on preparation repository for the **Google Cloud Certified Professional Agentic Architect** certification (Beta).
+### Naming changes you must know
 
-This repository is designed for developers, architects, and AI engineers who want to achieve deep mastery of autonomous agents, multi-agent orchestration, enterprise tool integration, security guardrails, and production deployment on Google Cloud.
+The exam guide uses newer product names than most public documentation. Answer with the exam's
+vocabulary.
 
-Every module is independently runnable and tested. Labs are deterministic and offline by default; live, potentially billable API use requires explicit opt-in.
-
-Start with the [exam readiness map](EXAM_READINESS.md) for objective coverage and high-yield distinctions, then use the [hands-on lab runbook](LAB_RUNBOOK.md) for the repeatable run-test-cleanup workflow.
-
----
-
-## 🏛️ Platform Architecture Overview
-
-![Google Cloud Agentic Architect Platform Architecture](assets/diagrams/master_architecture.jpg)
+| Exam guide name | What public docs may still call it |
+| :--- | :--- |
+| **Agent Runtime** | Vertex AI Agent Engine |
+| **Agent Search** | Vertex AI Search |
+| **Agent Registry** | (new) discovery service for agents, MCP servers and endpoints |
+| **Agent Gateway** | (new) policy-enforcing ingress for agent traffic |
 
 ---
 
-## 📚 Repository Structure & Learning Path
+## The learning path
 
-```
-gcp-certification-professional-agentic-architect/
-├── README.md                                 # Master overview, quickstart & curriculum
-├── STUDY_GUIDE.md                            # Comprehensive exam guide, concepts & cheatsheets
-├── EXAM_BLUEPRINT.md                         # Detailed domain weightings, objectives & tool map
-├── PRACTICE_EXAM.md                          # High-yield scenario-based exam questions & rationales
-├── EXAM_READINESS.md                         # Official-objective coverage and readiness gates
-├── LAB_RUNBOOK.md                            # Standard run, test, debrief, and cleanup contract
-├── requirements.txt                          # Python dependencies
-├── .env.example                              # Environment configuration template
-├── cli.py                                    # Interactive CLI tool (Labs, Tests, Exam Simulator)
-│
-├── modules/                                  # 13 Standalone Hands-On Modules
-│   ├── 01_understand_agents_and_architecture/ # Low-Code vs Code, Agent vs Workflow
-│   ├── 02_antigravity_and_coding_agents/     # Antigravity SDK, Coding Agents & Sandboxing
-│   ├── 03_agentic_strategy_and_prototyping/  # Model Selection, Gemini 3.7 Flash Thinking Budgets
-│   ├── 04_optimizing_agent_behavior/         # Prompt Templates, Few-Shot, CoT & Loop Prevention
-│   ├── 05_agent_development_kit_adk/        # Agent Development Kit (ADK) & Structured Outputs
-│   ├── 06_agent_memory_and_state/            # Memory Bank, Managed Sessions & Redis Caching
-│   ├── 07_agent_tools_and_capabilities/      # Dynamic Tool Calling, OpenAPI & Fallbacks
-│   ├── 08_custom_skills_plugins_and_hooks/   # Antigravity Skills, Plugins, Hooks & Rules
-│   ├── 09_enterprise_rag_and_vector_search/  # Vector Search 1.0, Agent Retrieval & RAG Engine
-│   ├── 10_enterprise_databases_and_mcp/      # Model Context Protocol (MCP) & MCP Toolbox
-│   ├── 11_multi_agent_orchestration_a2a/     # Agent2Agent (A2A), Hierarchical & Graph Workflows
-│   ├── 12_agentops_evaluation_and_monitoring/# ADK evalset, Golden Datasets, Autoraters & Tracing
-│   └── 13_production_deployment_and_security/# Agent Runtime, Cloud Run, Model Armor, PAB & HITL
-│
-├── scripts/                                  # Automation & Setup Utilities
-│   ├── setup_environment.sh                  # Bootstrap virtualenv and dependencies
-│   ├── test_all_modules.sh                   # Run full test suite across all 13 modules
-│   ├── verify_labs.sh                        # Run and clean each module independently
-│   └── deploy_to_gcp.sh                      # Cloud deployment helper
-│
-└── .github/
-    └── workflows/
-        └── ci.yml                            # Automated CI test workflow
+```mermaid
+graph LR
+    T1["<b>Track 1</b><br/>Low-code agents<br/><i>13%</i>"] --> T2["<b>Track 2</b><br/>Coding agents<br/><i>17%</i>"]
+    T2 --> T3["<b>Track 3</b><br/>Custom agents<br/><i>33%</i>"]
+    T3 --> T4["<b>Track 4</b><br/>Evaluate &amp; deploy<br/><i>22%</i>"]
+    T4 --> T5["<b>Track 5</b><br/>Secure &amp; govern<br/><i>15%</i>"]
+    T5 --> EX(["Practice exam<br/>&amp; readiness check"])
+
+    style T3 fill:#1a73e8,color:#ffffff,stroke:#1a73e8
+    style T4 fill:#4285f4,color:#ffffff,stroke:#4285f4
+    style EX fill:#e6f4ea,stroke:#137333
 ```
 
----
-
-## 🎯 Exam Domain Mapping
-
-| Exam Domain | Weight | Covered Modules |
-| :--- | :---: | :--- |
-| **Domain 1: Building agents using low-code tools** | **13%** | [Module 01](modules/01_understand_agents_and_architecture), [Module 04](modules/04_optimizing_agent_behavior) |
-| **Domain 2: Using coding agents for application development** | **17%** | [Module 02](modules/02_antigravity_and_coding_agents), [Module 08](modules/08_custom_skills_plugins_and_hooks) |
-| **Domain 3: Developing custom agents** | **33%** | [Module 03](modules/03_agentic_strategy_and_prototyping), [Module 05](modules/05_agent_development_kit_adk), [Module 06](modules/06_agent_memory_and_state), [Module 07](modules/07_agent_tools_and_capabilities), [Module 09](modules/09_enterprise_rag_and_vector_search), [Module 10](modules/10_enterprise_databases_and_mcp), [Module 11](modules/11_multi_agent_orchestration_a2a) |
-| **Domain 4: Evaluating and deploying agentic workflows** | **22%** | [Module 12](modules/12_agentops_evaluation_and_monitoring), [Module 13](modules/13_production_deployment_and_security) |
-| **Domain 5: Securing and governing agentic workflows** | **15%** | [Module 13](modules/13_production_deployment_and_security) |
+The arrows are a *suggested* order, not a dependency chain. **Every lab is self-contained** — it
+restates the concepts it needs and never says "as you saw in the previous lab". Jump straight to
+whichever section you are weakest in.
 
 ---
 
-## ⚡ Quickstart Guide
+## All eighteen labs
 
-### 1. Prerequisites
-- **Python 3.10+** (Tested on Python 3.10, 3.11, 3.12, 3.14)
-- **Google Cloud SDK (`gcloud`)** (Optional for local testing; required for cloud deployment)
-- **Gemini API Key** from [Google AI Studio](https://aistudio.google.com/app/api-keys) OR authenticated Google Cloud project credentials.
+### Track 1 — Building agents using low-code tools · 13%
+[`tracks/01_low_code_agents/`](tracks/01_low_code_agents/)
 
-### 2. Installation
+| Lab | Topic | Objectives |
+| :--- | :--- | :--- |
+| [01](tracks/01_low_code_agents/lab_01_agent_designer_workflows/) | Agent Designer workflows — prompt patterns, zero/few-shot, chain-of-thought | 1.1 |
+| [02](tracks/01_low_code_agents/lab_02_cx_agent_studio_state/) | CX Agent Studio — pages, intents, transition routes, event handlers | 1.1 |
+| [03](tracks/01_low_code_agents/lab_03_enterprise_data_and_multimodal/) | Connecting enterprise data to Gemini Enterprise; multimodal input | 1.2 |
+
+### Track 2 — Using coding agents for application development · 17%
+[`tracks/02_coding_agents/`](tracks/02_coding_agents/)
+
+| Lab | Topic | Objectives |
+| :--- | :--- | :--- |
+| [04](tracks/02_coding_agents/lab_04_mcp_and_tooling/) | MCP servers and toolsets — extending a coding agent's reach | 2.1 |
+| [05](tracks/02_coding_agents/lab_05_secure_sandboxes/) | Secure code execution — GKE job vs GKE sandbox vs Cloud Run vs E2B | 2.1, 2.2 |
+| [06](tracks/02_coding_agents/lab_06_antigravity_customization/) | Customising and governing coding agents — rules, skills, allowlists | 2.2 |
+
+### Track 3 — Developing custom agents · 33% ⭐
+[`tracks/03_custom_agents/`](tracks/03_custom_agents/)
+
+| Lab | Topic | Objectives |
+| :--- | :--- | :--- |
+| [07](tracks/03_custom_agents/lab_07_model_selection/) | Choosing a model — Pro vs Flash vs Lite, open-weights, cost shape | 3.1 |
+| [08](tracks/03_custom_agents/lab_08_adk_fundamentals/) | ADK fundamentals — `LlmAgent`, workflow agents, the graph `Workflow` | 3.1, 3.3 |
+| [09](tracks/03_custom_agents/lab_09_sessions_and_memory/) | Session state vs memory; Memory Bank vs RAG memory | 3.1, 3.2 |
+| [10](tracks/03_custom_agents/lab_10_tools_and_skills/) | Tools, long-running tools, human-in-the-loop, and the Skill Registry | 3.1, 3.2 |
+| [11](tracks/03_custom_agents/lab_11_rag_and_retrieval/) | Grounding — Agent Search, RAG Engine, vector stores, citations | 3.2 |
+| [12](tracks/03_custom_agents/lab_12_multi_agent_and_a2a/) | Multi-agent orchestration and the A2A protocol | 3.3 |
+
+### Track 4 — Evaluating and deploying agentic workflows · 22%
+[`tracks/04_evaluate_and_deploy/`](tracks/04_evaluate_and_deploy/)
+
+| Lab | Topic | Objectives |
+| :--- | :--- | :--- |
+| [13](tracks/04_evaluate_and_deploy/lab_13_agent_evaluation/) | Evaluation — eval sets, trajectory vs response scoring, LLM-as-judge | 4.1 |
+| [14](tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes/) | Agent Runtime vs Cloud Run vs GKE vs GCE; `adk deploy` | 4.2 |
+| [15](tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting/) | Tracing, token accounting, alerting, conformance replay | 4.1, 4.2 |
+
+### Track 5 — Securing and governing agentic workflows · 15%
+[`tracks/05_secure_and_govern/`](tracks/05_secure_and_govern/)
+
+| Lab | Topic | Objectives |
+| :--- | :--- | :--- |
+| [16](tracks/05_secure_and_govern/lab_16_agent_identity_and_auth/) | Agent Identity, service accounts, identity propagation, least privilege | 5.1 |
+| [17](tracks/05_secure_and_govern/lab_17_model_armor_and_hitl/) | Model Armor, prompt-injection defence, fail-closed vs fail-open, HITL | 5.2 |
+| [18](tracks/05_secure_and_govern/lab_18_governance_gateway_registry/) | Agent Gateway, Agent Registry, audit and lifecycle governance | 5.1 |
+
+---
+
+## Quickstart
+
+### 1. Install
+
 ```bash
-# Clone or navigate to the repository
+git clone https://github.com/cmanikandan/gcp-certification-professional-agentic-architect.git
 cd gcp-certification-professional-agentic-architect
 
-# Create and activate virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Install all dependencies
 pip install -r requirements.txt
 ```
 
-### 3. Environment Configuration
-Copy the `.env.example` file to `.env`:
+> [!NOTE]
+> `requirements.txt` pulls `google-adk[agent-identity,gcp,a2a,extensions]`. Those extras matter:
+> without them you get precise `ImportError`s on the identity, Model Armor, A2A and GKE-executor
+> labs. See [`docs/VERIFIED_FACTS.md`](docs/VERIFIED_FACTS.md) for the extras-to-module mapping.
+
+### 2. Run any lab, offline and free
+
 ```bash
-cp .env.example .env
-```
-Edit `.env` and set your credentials:
-```ini
-GCP_PROJECT_ID=your-gcp-project-id
-GEMINI_API_KEY=your-gemini-api-key-here
-GEMINI_MODEL=gemini-3.7-flash
+./tracks/03_custom_agents/lab_08_adk_fundamentals/run_lab.sh
 ```
 
-> **Note**: All labs run offline by default. Module 05 requires an explicit `--live` flag before it can use a configured API key.
+No credentials. No network. No cost. The offline path still builds **real ADK objects** and asserts
+on the **real API surface** — only the model call itself is stubbed.
+
+### 3. Optionally run it live on Google Cloud
+
+```bash
+cp .env.example .env     # fill in GOOGLE_CLOUD_PROJECT etc.
+./tracks/03_custom_agents/lab_08_adk_fundamentals/run_lab.sh --live
+```
+
+Each lab states its own cost estimate before it charges you anything. If `--live` is passed but the
+configuration is incomplete, the lab tells you exactly what is missing and **falls back to offline
+rather than crashing**.
+
+### 4. Tear down
+
+```bash
+./tracks/03_custom_agents/lab_08_adk_fundamentals/cleanup.sh
+```
+
+Idempotent. Safe to run twice. Offline labs provision nothing, so cleanup is a no-op for them.
 
 ---
 
-## 🛠️ Running the Interactive CLI Runner
+## Repository layout
 
-Launch the master interactive terminal suite:
-```bash
-python3 cli.py
 ```
-
-The CLI provides an interactive terminal menu to:
-1. 🚀 **Run Any Hands-On Module**: Step through concepts, code demos, and outputs.
-2. 🧪 **Run All Automated Tests**: Execute the full pytest test suite across all 13 modules.
-3. 📋 **Take the Practice Exam**: Interactive quiz simulator with real-time scoring and full rationales.
-4. 🔍 **Verify Cloud Setup**: Validate your GCP project ID, Gemini API keys, and SDK installations.
-
----
-
-## 🧪 Running Automated Tests
-
-You can run the entire test suite via `pytest`:
-```bash
-pytest modules/ -v
-```
-Or run a specific module's test suite:
-```bash
-pytest modules/05_agent_development_kit_adk/ -v
-```
-
-To prove the complete independent run/cleanup contract:
-
-```bash
-./scripts/verify_labs.sh
+.
+├── tracks/                  # the 18 labs, grouped into the 5 exam sections
+│   └── NN_track_name/
+│       └── lab_NN_topic/
+│           ├── README.md        # the teaching material (11 fixed sections)
+│           ├── lab.py           # runnable demo, offline by default
+│           ├── run_lab.sh       # demo + tests
+│           ├── cleanup.sh       # idempotent teardown
+│           └── tests/           # pytest assertions
+├── common/                  # shared foundation used by every lab
+│   ├── models.py                # verified model catalog + selection helper
+│   ├── config.py                # the offline/live gate
+│   └── labkit.py                # dependency-free console output helpers
+├── docs/
+│   ├── VERIFIED_FACTS.md        # ← the authority. Nothing may contradict this.
+│   ├── EXAM_GUIDE.md            # verbatim objectives, weights, lab cross-reference
+│   └── LAB_AUTHORING_CONTRACT.md
+├── STUDY_GUIDE.md           # concepts, condensed
+├── PRACTICE_EXAM.md         # weighted practice questions, every option explained
+├── EXAM_READINESS.md        # self-assessment checklist
+└── cli.py                   # interactive runner
 ```
 
 ---
 
-## 📖 Module-by-Module Breakdown
+## Every lab has the same eleven sections
 
-1. **[Module 01: Understand Google Cloud Agents & Architecture](modules/01_understand_agents_and_architecture)**
-   - Deterministic workflows vs Autonomous Agents.
-   - Gemini Enterprise Agent Designer vs CX Agent Studio vs Custom Code.
-2. **[Module 02: Antigravity SDK & Coding Agents](modules/02_antigravity_and_coding_agents)**
-   - Autonomous coding agents, Antigravity SDK, Claude Code on GCP.
-   - Sandboxing with GKE (gVisor) and Cloud Workstations.
-3. **[Module 03: Agentic Strategy & Model Selection](modules/03_agentic_strategy_and_prototyping)**
-   - Model selection matrix: Gemini 3.7 Flash vs 2.5 Pro vs Flash-Lite vs Gemma 2.
-   - Dynamic thinking budget optimization and latency-cost profiling.
-4. **[Module 04: Optimizing Agent Behavior](modules/04_optimizing_agent_behavior)**
-   - In-console prompt templates, system instructions, Few-Shot, and Chain-of-Thought.
-   - Loop detection and hallucination mitigations.
-5. **[Module 05: Agent Development Kit (ADK) & GenAI SDK](modules/05_agent_development_kit_adk)**
-   - Building custom agents with Gemini 3.7 Flash and the Google GenAI SDK.
-   - Type-safe structured output schemas (`response_schema`).
-6. **[Module 06: Agent Memory, State & Sessions](modules/06_agent_memory_and_state)**
-   - Agent Platform Memory Bank, Managed Sessions, context window sliding-window pruning.
-   - Redis / Firestore state store integration.
-7. **[Module 07: Agent Capabilities & Tool Function Calling](modules/07_agent_tools_and_capabilities)**
-   - Dynamic function calling, OpenAPI tool schemas, parameter validation, and retry handlers.
-8. **[Module 08: Custom Skills, Plugins & Lifecycle Hooks](modules/08_custom_skills_plugins_and_hooks)**
-   - Antigravity skills (`SKILL.md`), progressive disclosure, lifecycle hooks, and rules.
-9. **[Module 09: Enterprise RAG & Vector Search 1.0](modules/09_enterprise_rag_and_vector_search)**
-   - Vector Search 1.0, Agent Retrieval, `text-embedding-005`, similarity metrics & reranking.
-10. **[Module 10: Enterprise Databases & Model Context Protocol (MCP)](modules/10_enterprise_databases_and_mcp)**
-    - Model Context Protocol (MCP) servers and clients over Stdio and SSE.
-    - Google Cloud MCP Toolbox for BigQuery and Cloud SQL.
-11. **[Module 11: Multi-Agent Systems & Agent2Agent (A2A)](modules/11_multi_agent_orchestration_a2a)**
-    - Multi-agent topologies: Sequential pipelines, Parallel analyzers, Hierarchical Supervisors.
-    - Agent2Agent (A2A) handoff protocol.
-12. **[Module 12: AgentOps, Evaluation & Observability](modules/12_agentops_evaluation_and_monitoring)**
-    - Continuous evaluation with ADK `evalset` and Gemini 3.7 Flash autoraters.
-    - Cloud Logging, Cloud Trace, latency profiling, and metric scorecards.
-13. **[Module 13: Production Deployment, Security & Governance](modules/13_production_deployment_and_security)**
-    - Runtime selection (Agent Runtime, Cloud Run, GKE).
-    - Model Armor, Agent Identity PAB, Agent Gateway, and Human-in-the-Loop (HITL).
+This is deliberate. It means you always know where to look, and it means a lab can be read cold.
+
+1. **Exam objectives covered** — quoted verbatim from the official guide
+2. **Explain it simply** — plain English, analogy first, no jargon until the idea has landed
+3. **How it works** — a mermaid diagram, then the mechanics
+4. **The decision that matters** — the trade-off table; the highest-value section for the exam
+5. **Hands-on A — offline** (free)
+6. **Hands-on B — live on Google Cloud** (opt-in, costed)
+7. **Verify it worked**
+8. **Troubleshooting** — real failure modes only
+9. **Clean up**
+10. **Exam traps** — the specific distinctions that get tested
+11. **Check yourself** — recall questions with collapsible answers
 
 ---
 
-## 🧹 Resource Cleanup & Cost Teardown
+## How the facts in this repo were verified
 
-To avoid incurring unexpected charges on your Google Cloud account after completing the hands-on labs, run the automated teardown utility:
+Certification material goes stale fast, and an out-of-date model name is worse than no model name.
+So nothing here is quoted from memory:
 
-```bash
-# Automated interactive GCP teardown
-./scripts/cleanup_gcp_resources.sh
+| Claim type | How it was verified |
+| :--- | :--- |
+| Gemini model IDs, context windows | Live `ListModels` call against the Gemini API |
+| Package versions | PyPI JSON API |
+| ADK classes, methods, keyword arguments | `inspect.signature` against an actual ADK install |
+| `adk` CLI commands and flags | `--help` on the installed binary |
+| Exam objectives and weights | Text extracted directly from the official exam-guide PDF |
 
-# Or clean up via the Master CLI menu / flag
-python3 cli.py --cleanup
-```
+Anything that could **not** be verified against a public source is explicitly flagged in-line as
+**Pre-GA / unverified**, alongside the closest verified equivalent. There is also a guard test that
+fails the build if a retired model ID such as `text-embedding-005` ever reappears.
 
-### Manual Teardown Commands
-- **Cloud Run Agent Gateway**: `gcloud run services delete agent-gateway --region=$REGION --project=$PROJECT_ID --quiet`
-- **Vertex AI Vector Search Endpoint**: `gcloud ai index-endpoints delete $INDEX_ENDPOINT_ID --region=$REGION --project=$PROJECT_ID --quiet`
-- **Memorystore for Redis**: `gcloud redis instances delete $REDIS_INSTANCE_NAME --region=$REGION --project=$PROJECT_ID --quiet`
-- **Cloud Storage Bucket**: `gcloud storage rm --recursive gs://$GCS_BUCKET_NAME --quiet`
+> [!WARNING]
+> This is a **beta** exam. The product surface is moving. Re-read `docs/VERIFIED_FACTS.md` and
+> re-check the official guide close to your exam date.
 
 ---
 
-## 📜 Study Tips for Passing the Beta Exam
-1. **Understand Architectural Trade-Offs**: The exam heavily tests when to use low-code vs custom code, when to use Gemini 3.7 Flash vs Pro vs Gemma 2, and when to use Agent Runtime vs Cloud Run vs GKE.
-2. **Master Agent Security**: Understand Principal Access Boundaries (PAB), Model Armor filters, and OAuth 2.0 Auth Manager.
-3. **Know MCP & A2A**: Be ready for questions on the Model Context Protocol (MCP) for tool integration and Agent2Agent (A2A) for multi-agent delegation.
-4. **Practice with Real Code**: Run every lab in this repository to build muscle memory for prompt design, tool declarations, and evaluation pipelines.
+## Suggested study plan
+
+| Week | Focus | Deliverable |
+| :--- | :--- | :--- |
+| 1 | Track 3 labs 07–10 | Can build an ADK agent with tools, state and memory from a blank file |
+| 2 | Track 3 labs 11–12, Track 4 | Can ground an agent, orchestrate several, evaluate and deploy them |
+| 3 | Track 5, then Tracks 1–2 | Can secure an agent and place it correctly on the low-code ↔ custom-code spectrum |
+| 4 | `PRACTICE_EXAM.md`, then re-run weak labs live | ≥80% on the practice exam, `EXAM_READINESS.md` fully ticked |
+
+---
+
+## Contributing back to your own fork
+
+The rules that keep this repo coherent are in
+[`docs/LAB_AUTHORING_CONTRACT.md`](docs/LAB_AUTHORING_CONTRACT.md). The short version: offline by
+default, never invent an API, never hard-code a model ID, always include a diagram.

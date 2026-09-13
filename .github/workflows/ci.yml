@@ -1,36 +1,69 @@
-name: CI Test Suite
+name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
+  workflow_dispatch:
+
+# Every job below runs with NO Google Cloud credentials on purpose.
+# The labs are contractually required to work offline; if one of them needs a
+# project to pass, that is a bug in the lab, not in CI.
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
   test:
+    name: Offline test suite (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Run Test Suite across all 13 modules
-      run: |
-        python -m pytest modules/ -v
+      - name: Repo contract and stale-fact guards
+        run: python -m pytest tests/ -v
 
-    - name: Verify every lab run and cleanup contract
-      run: |
-        ./scripts/verify_labs.sh
+      - name: Lab test suite
+        run: python -m pytest tracks/ -v
+
+  labs:
+    name: Every lab runs offline
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run every lab end to end
+        run: python cli.py --all
+
+      - name: Run every cleanup script
+        run: python cli.py --cleanup

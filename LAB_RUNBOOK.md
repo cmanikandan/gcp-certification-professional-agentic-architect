@@ -1,52 +1,68 @@
 # Hands-on Lab Runbook
 
-Every module has the same contract:
+Every lab follows a strict authoring contract:
+- `run_lab.sh` executes the lab code and its test suite.
+- The default execution path is deterministic, offline, and non-billable. Only a `--live` flag touches Google Cloud.
+- `cleanup.sh` cleanly removes all local and remote resources created by the lab.
 
-- `run_lab.sh` runs the demonstration and that module's tests.
-- The default path is deterministic, offline, and non-billable.
-- `cleanup.sh` removes only that module's local generated artifacts and is safe to run repeatedly.
-- Optional live-cloud work is explicitly labeled and requires exact project/resource identifiers. The default lab never creates cloud resources.
+## Environment Setup
 
-## One-time setup
-
-```bash
-./scripts/setup_environment.sh
-```
-
-Do not put credentials in source files or command history. Use Application Default Credentials or a local ignored `.env` only for an explicitly chosen live exercise.
-
-## Run one module
+The repository uses a pre-built virtual environment (`.venv-adk`). If you need to rebuild it or run locally:
 
 ```bash
-./modules/09_enterprise_rag_and_vector_search/run_lab.sh
-./modules/09_enterprise_rag_and_vector_search/cleanup.sh
+python3.10 -m venv .venv-adk
+source .venv-adk/bin/activate
+pip install -r requirements.txt
 ```
 
-The wrappers resolve the repository path themselves, so they work from any current directory. Set `PYTHON_BIN=/path/to/python` only if you do not want to use the repository `.venv`.
+### Why ADK Extras Matter
+The `google-adk` package requires specific extras to unlock exam-relevant integrations. If you miss them, you will see a precise `ImportError` naming the extra. This maps directly to troubleshooting scenarios on the exam.
 
-## Verify all modules
+- `google-adk[agent-identity]`: Unlocks `integrations.agent_identity` and `integrations.agent_registry`.
+- `google-adk[gcp]`: Unlocks Model Armor (`google-cloud-modelarmor`).
+- `google-adk[a2a]`: Unlocks A2A support (`a2a-sdk`).
+- `google-adk[extensions]`: Unlocks `GkeCodeExecutor`.
 
+## Offline vs. Live Contract
+
+By default, running a lab exercises the real ADK class structures without hitting network endpoints. The model inference calls are stubbed to keep execution fast and free.
+
+To run a live exercise against Google Cloud, use the `--live` flag.
+For live paths, you must verify your active identity and quota project using Application Default Credentials (ADC):
+```bash
+gcloud auth list
+gcloud auth application-default set-quota-project <YOUR_PROJECT_ID>
+```
+
+You can optionally define environment variables in a local `.env` file (copy `.env.example` to `.env`).
+
+## Running the Labs
+
+### Run One Lab
+```bash
+cd tracks/03_custom_agents/lab_08_adk_fundamentals
+./run_lab.sh
+./cleanup.sh
+```
+
+### Verify All Labs
 ```bash
 ./scripts/verify_labs.sh
 ```
+This executes every test suite and cleanup script across all tracks to guarantee the repository is green.
 
-This executes and cleans every module independently. It is also used in CI so a missing entry point, cleanup script, import, or dependency fails the build.
+## Cost Control
 
-## Live API exercise
+- Labs run offline by default and incur **$0**.
+- Running with `--live` will hit real endpoints. Most labs use minimal tokens (under $0.05), but long-running multi-agent loops can accumulate charges.
+- Ensure you run `./cleanup.sh` after every `--live` execution, as it deletes any active cloud resources.
 
-Module 05 is offline by default even when `GEMINI_API_KEY` exists. A billable call requires explicit opt-in:
+## Troubleshooting
 
-```bash
-python3 modules/05_agent_development_kit_adk/custom_adk_agent.py --live
-```
-
-The live call creates no persistent infrastructure, but it can incur model usage charges. Run the module cleanup afterward to clear local test artifacts.
-
-## Lab debrief
-
-After each lab, answer these four prompts without looking at the README:
-
-1. Which official objective did this lab exercise?
-2. What requirement caused the selected Google Cloud service or pattern to win?
-3. Which two plausible alternatives would appear as distractors, and why are they wrong here?
-4. What identity, data, safety, evaluation, cost, and cleanup controls are still required in production?
+| Failure Mode | Symptom | Fix |
+| :--- | :--- | :--- |
+| **Missing ADK Extras** | `ImportError` when importing `GkeCodeExecutor` or A2A modules | Run `pip install google-adk[extensions]` or the specific missing extra. |
+| **Missing ADC** | Default credentials not found / 401 Unauthorized | Run `gcloud auth application-default login` |
+| **Quota Project Mismatch** | 403 Forbidden on Vertex AI | Run `gcloud auth application-default set-quota-project <PROJECT_ID>` |
+| **Stale Virtualenv** | Module not found errors | `rm -rf .venv-adk` and re-run setup |
+| **Region Availability** | 400 Unsupported region | Set your region to `us-central1` |

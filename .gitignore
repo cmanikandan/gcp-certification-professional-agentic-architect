@@ -8,6 +8,8 @@ __pycache__/
 .env
 .env.local
 .venv
+.venv-adk/
+.venv-*/
 env/
 venv/
 ENV/

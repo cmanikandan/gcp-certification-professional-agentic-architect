@@ -1,34 +1,58 @@
-# Core Google Cloud & GenAI SDKs
-google-genai>=1.0.0
+# Google Cloud Professional Agentic Architect — study repository dependencies
+#
+# Versions below were verified against the PyPI JSON API on 2026-09-13.
+# See docs/VERIFIED_FACTS.md for the full verification record.
+#
+# Install:
+#   python3 -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements.txt
+
+# ---------------------------------------------------------------------------
+# Agent Development Kit — the core of exam Section 3 (~33%)
+#
+# The extras matter. Each one gates a specific exam-scoped integration:
+#   agent-identity -> google.adk.integrations.agent_identity + agent_registry
+#   gcp            -> Model Armor (google-cloud-modelarmor)
+#   a2a            -> Agent2Agent protocol support
+#   extensions     -> GkeCodeExecutor
+# ---------------------------------------------------------------------------
+google-adk[agent-identity,gcp,a2a,extensions]>=2.9.0
+
+# Gen AI SDK — the model client underneath ADK
+google-genai>=2.23.0
+
+# Agent2Agent protocol SDK (exam objective 3.3)
+a2a-sdk>=1.1.2
+
+# Model Context Protocol (exam objectives 2.1, 3.2, 3.3)
+mcp>=2.2.0
+
+# ---------------------------------------------------------------------------
+# Google Cloud services named in the exam's "tools in scope" list
+# ---------------------------------------------------------------------------
 google-cloud-aiplatform>=1.80.0
 google-cloud-storage>=2.19.0
-google-cloud-logging>=3.11.0
-google-cloud-trace>=1.15.0
 google-cloud-bigquery>=3.29.0
 google-cloud-firestore>=2.20.0
 google-cloud-secret-manager>=2.22.0
+google-cloud-logging>=3.11.0
+google-cloud-trace>=1.15.0
+google-cloud-dlp>=3.26.0
 
-# Model Context Protocol (MCP)
-mcp>=1.3.0
-
-# Data Validation & API Models
+# ---------------------------------------------------------------------------
+# Lab support
+# ---------------------------------------------------------------------------
 pydantic>=2.10.0
-pydantic-settings>=2.7.0
-
-# Web & Server Frameworks (Cloud Run & Agent Gateway)
+numpy>=2.1.0
+redis>=5.2.0
 fastapi>=0.115.0
 uvicorn>=0.34.0
 httpx>=0.28.0
-requests>=2.32.0
-
-# State, Vector & Memory Management
-numpy>=2.1.0
-redis>=5.2.0
-
-# CLI, Testing & Developer Experience
-rich>=13.9.0
 python-dotenv>=1.0.1
+
+# ---------------------------------------------------------------------------
+# Testing
+# ---------------------------------------------------------------------------
 pytest>=8.3.0
 pytest-asyncio>=0.25.0
 pytest-mock>=3.14.0
-tabulate>=0.9.0

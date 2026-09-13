@@ -57,9 +57,10 @@ else
     fi
 fi
 
-# Run each module's scoped, idempotent local cleanup contract.
-for MODULE_CLEANUP in modules/[0-9][0-9]_*/cleanup.sh; do
-    bash "$MODULE_CLEANUP"
+# Run each lab's scoped, idempotent local cleanup contract.
+for LAB_CLEANUP in tracks/[0-9][0-9]_*/lab_[0-9][0-9]_*/cleanup.sh; do
+    [ -f "$LAB_CLEANUP" ] || continue
+    bash "$LAB_CLEANUP"
 done
 
 if [ -d ".pytest_cache" ]; then

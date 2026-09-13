@@ -1,44 +1,142 @@
-# Exam Readiness Map
+# Exam readiness map
 
-This map is based on the official Professional Agentic Architect exam guide downloaded on 2 September 2026. Product names and exam policies can change, so re-check the [official exam guide](https://services.google.com/fh/files/misc/professional_agentic_architect_exam_guide_english.pdf) before booking.
+A self-assessment instrument, not a reading list. Every row is a **capability**, phrased as
+something you can do *without looking it up*, and mapped to the lab that proves it.
 
-The guide weights the domains at 13% / 17% / 33% / 22% / 15%. Allocate practice time in approximately the same ratio; do not spend half your preparation on the visually interesting multi-agent material while neglecting evaluation and governance.
+Based on the official
+[Professional Agentic Architect exam guide](https://services.google.com/fh/files/misc/professional_agentic_architect_exam_guide_english.pdf).
+This is a **beta** exam — product names and policies move. Re-check the guide before you book.
 
-## Objective-to-lab coverage
+> [!IMPORTANT]
+> The guide weights the sections **13% / 17% / 33% / 22% / 15%**. Allocate practice time in roughly
+> the same ratio. The common failure mode is spending half your preparation on the visually
+> interesting multi-agent material and neglecting evaluation, deployment and governance — which
+> together are **37%** of the paper.
 
-| Official objective | What you must be able to explain or do | Lab evidence |
-| --- | --- | --- |
-| 1.1 Low-code workflows | Model pages, transition routes, event handlers, system instructions, prompt templates, few-shot examples, and deterministic escalation | Module 01 state machine; Module 04 prompt and loop lab |
-| 1.2 Enterprise data | Choose secure connectors and an ingestion/grounding path for proprietary text, image, audio, video, and PDF sources | Module 01 multimodal connection planner; Module 09 grounding lab |
-| 2.1 Coding agents | Configure tools/MCP/skills, enforce a sandbox boundary, refactor code, patch vulnerabilities, and verify the result | Module 02 sandbox and remediation lab; Modules 07 and 10 |
-| 2.2 Enterprise customization | Explain skills, plugins, hooks, rules, subagents, Agents CLI modes, versioning, and Skill Registry governance | Module 08 skill registry and execution-mode lab |
-| 3.1 Custom agents | Select LLM/SLM and hosted/self-hosted options; build structured agents; manage sessions/memory; configure skills | Modules 03, 05, 06, and 08 |
-| 3.2 Domain knowledge | Build RAG, select embeddings/similarity/reranking, enforce Agent Identity permissions, and integrate databases/SaaS through MCP | Modules 09, 10, and 13 |
-| 3.3 Orchestration | Distinguish MCP from A2A and select sequential, parallel, supervisor, or graph coordination with governed handoffs | Module 11; Module 13 registry/identity policy chain |
-| 4.1 Evaluation | Create golden and edge-case sets, score tool use and retrieval/response quality, and gate releases continuously | Module 12 continuous evaluation gate |
-| 4.2 Deployment | Choose Agent Runtime, Cloud Run, or GKE; diagnose drift, latency, loops, and system failures; trace cost/reliability | Modules 04, 12, and 13 runtime selector |
-| 5.1 Governance | Apply OAuth 2.0, Agent Identity PAB, Agent Gateway, Agent Registry, and Model Armor as distinct layers | Module 13 end-to-end policy chain |
-| 5.2 Secure behavior | Combine guardrails, secure identity/data propagation, and HITL for consequential actions | Module 13 Model Armor and approval gate |
+---
 
-## High-yield distinctions
+## Section 1 — Building agents using low-code tools · 13%
 
-- MCP connects an agent or model-facing client to tools and context. A2A coordinates work and handoffs between independently addressable agents.
-- IAM allow policy grants access. A Principal Access Boundary sets the maximum resource boundary for a principal; it does not grant access. VPC Service Controls is a separate data-exfiltration perimeter.
-- Agent Registry is inventory, version, ownership, and policy metadata. Agent Gateway is the traffic enforcement and observability point. Agent Identity is the workload principal.
-- Agent Runtime is the managed agent-specific choice. Cloud Run is the portable serverless container choice. GKE is for Kubernetes-level control, specialized networking, or custom scheduling.
-- Sessions preserve an active interaction. Memory Bank supports durable, cross-session recall. A cache is an optimization, not authoritative conversational memory.
-- Retrieval quality and response quality are separate. Evaluate retrieval relevance/groundedness as well as task completion, tool choice, tool arguments, safety, latency, and cost.
-- Model Armor inspects content; OAuth authenticates/delegates; IAM/PAB authorizes and bounds resources; HITL controls consequential actions. No single layer replaces the others.
-- The exam guide includes chain-of-thought prompting as a concept. In production, do not require or log private model scratchpads; ask for concise, auditable decisions and tool traces.
+| ✓ | I can... without looking it up | Proven by |
+| :--- | :--- | :--- |
+| ☐ | Choose between zero-shot, few-shot and chain-of-thought prompting, and say what each costs | [Lab 01](tracks/01_low_code_agents/lab_01_agent_designer_workflows) |
+| ☐ | Explain pages, intents, transition routes and event handlers, and which one handles a retry limit | [Lab 02](tracks/01_low_code_agents/lab_02_cx_agent_studio_state) |
+| ☐ | Connect enterprise data to Gemini Enterprise and say when Agent Search is the right answer | [Lab 03](tracks/01_low_code_agents/lab_03_enterprise_data_and_multimodal) |
+| ☐ | Decide when a low-code tool is *sufficient* and when the requirement forces custom code | [Track 1](tracks/01_low_code_agents/) |
 
-## Readiness gates
+## Section 2 — Using coding agents for application development · 17%
 
-You are ready to schedule only when all of these are true:
+| ✓ | I can... without looking it up | Proven by |
+| :--- | :--- | :--- |
+| ☐ | Explain what MCP is, and wire an agent to an MCP server with a toolset | [Lab 04](tracks/02_coding_agents/lab_04_mcp_and_tooling) |
+| ☐ | Rank the code executors by isolation strength, and explain why GKE `job` and `sandbox` differ | [Lab 05](tracks/02_coding_agents/lab_05_secure_sandboxes) |
+| ☐ | Say why `UnsafeLocalCodeExecutor` must never reach production, in one sentence | [Lab 05](tracks/02_coding_agents/lab_05_secure_sandboxes) |
+| ☐ | Govern a coding agent with rules, skills and an `allowed_tools` allowlist | [Lab 06](tracks/02_coding_agents/lab_06_antigravity_customization) |
 
-1. `./scripts/verify_labs.sh` passes from a clean clone.
-2. You can complete each lab without reading its implementation first, then explain why the alternative services are weaker for that scenario.
-3. You score at least 85% twice on scenario questions, including multiple-select questions, with at least 75% in every domain.
-4. For every missed question, you can name the misleading distractor and the requirement that eliminates it.
-5. You can draw the identity-to-gateway-to-tool authorization path and the prompt-to-retrieval-to-evaluation path from memory.
+## Section 3 — Developing custom agents · 33% ⭐
 
-These gates improve preparation but cannot guarantee an exam result.
+| ✓ | I can... without looking it up | Proven by |
+| :--- | :--- | :--- |
+| ☐ | Pick between Pro, Flash and Lite from a latency/cost/reasoning requirement | [Lab 07](tracks/03_custom_agents/lab_07_model_selection) |
+| ☐ | Say when open-weights (Gemma) beats a hosted model, and what it costs you operationally | [Lab 07](tracks/03_custom_agents/lab_07_model_selection) |
+| ☐ | Write an `LlmAgent` from a blank file — instruction, tools, `output_schema`, `output_key` | [Lab 08](tracks/03_custom_agents/lab_08_adk_fundamentals) |
+| ☐ | Choose between a workflow agent and the graph `Workflow`, and state the deprecation nuance | [Lab 08](tracks/03_custom_agents/lab_08_adk_fundamentals) |
+| ☐ | Distinguish **session state** from **memory**, and say which survives a restart | [Lab 09](tracks/03_custom_agents/lab_09_sessions_and_memory) |
+| ☐ | Choose between Memory Bank and RAG memory, and justify it | [Lab 09](tracks/03_custom_agents/lab_09_sessions_and_memory) |
+| ☐ | Distinguish a **tool** from a **skill**, and explain what a Skill Registry adds | [Lab 10](tracks/03_custom_agents/lab_10_tools_and_skills) |
+| ☐ | Implement a human-in-the-loop pause with a long-running tool | [Lab 10](tracks/03_custom_agents/lab_10_tools_and_skills) |
+| ☐ | Choose between Agent Search, RAG Engine, a vector store, and long-context stuffing | [Lab 11](tracks/03_custom_agents/lab_11_rag_and_retrieval) |
+| ☐ | Explain chunking, embedding choice, re-ranking and citation checking as hallucination controls | [Lab 11](tracks/03_custom_agents/lab_11_rag_and_retrieval) |
+| ☐ | Say when **A2A** beats in-process `sub_agents` — and it is not "when there are many agents" | [Lab 12](tracks/03_custom_agents/lab_12_multi_agent_and_a2a) |
+| ☐ | Describe the A2A task handshake and what an Agent Card advertises | [Lab 12](tracks/03_custom_agents/lab_12_multi_agent_and_a2a) |
+| ☐ | Explain how Agent Registry ties discovery, MCP and A2A together | [Lab 12](tracks/03_custom_agents/lab_12_multi_agent_and_a2a) |
+
+## Section 4 — Evaluating and deploying agentic workflows · 22%
+
+| ✓ | I can... without looking it up | Proven by |
+| :--- | :--- | :--- |
+| ☐ | Distinguish **trajectory** evaluation from **final-response** evaluation, and say when each fails | [Lab 13](tracks/04_evaluate_and_deploy/lab_13_agent_evaluation) |
+| ☐ | Build an eval set and run `adk eval`; explain why the judge should out-rank the agent | [Lab 13](tracks/04_evaluate_and_deploy/lab_13_agent_evaluation) |
+| ☐ | Choose between Agent Runtime, Cloud Run, GKE and Compute Engine from stated constraints | [Lab 14](tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes) |
+| ☐ | Name the `adk deploy` targets and what changes about session persistence on each | [Lab 14](tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes) |
+| ☐ | Attribute latency between model and tool from a trace, and spot a runaway loop | [Lab 15](tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting) |
+| ☐ | Say what to alert on for an agent that generic APM would miss | [Lab 15](tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting) |
+| ☐ | Explain conformance replay as regression testing | [Lab 15](tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting) |
+
+## Section 5 — Securing and governing agentic workflows · 15%
+
+| ✓ | I can... without looking it up | Proven by |
+| :--- | :--- | :--- |
+| ☐ | Explain Agent Identity, and why a Principal Access Boundary is not just another IAM grant | [Lab 16](tracks/05_secure_and_govern/lab_16_agent_identity_and_auth) |
+| ☐ | Describe identity propagation, and what breaks when an agent acts as itself instead of the user | [Lab 16](tracks/05_secure_and_govern/lab_16_agent_identity_and_auth) |
+| ☐ | Configure Model Armor fail-closed vs fail-open, and name the flag that does it | [Lab 17](tracks/05_secure_and_govern/lab_17_model_armor_and_hitl) |
+| ☐ | Explain why prompt injection is not solved by prompt engineering | [Lab 17](tracks/05_secure_and_govern/lab_17_model_armor_and_hitl) |
+| ☐ | Describe the governance path: identity → gateway → screening → agent → tool → sandbox | [Lab 18](tracks/05_secure_and_govern/lab_18_governance_gateway_registry) |
+| ☐ | Explain what an Agent Registry gives you that a list of URLs does not | [Lab 18](tracks/05_secure_and_govern/lab_18_governance_gateway_registry) |
+
+---
+
+## Score yourself
+
+Count the ticks per section, then weight them. A section you have half-learned is more dangerous
+than one you have not started, because you will not know to revise it.
+
+| Section | Ticks | Out of | % | Exam weight |
+| :--- | ---: | ---: | ---: | ---: |
+| 1. Low-code tools | | 4 | | 13% |
+| 2. Coding agents | | 4 | | 17% |
+| 3. Custom agents | | 13 | | 33% |
+| 4. Evaluate & deploy | | 7 | | 22% |
+| 5. Secure & govern | | 6 | | 15% |
+| **Total** | | **34** | | **100%** |
+
+| Overall | Verdict |
+| :--- | :--- |
+| **30–34** | Ready. Spend the remaining time on your lowest-scoring *section*, not your lowest-scoring total. |
+| **24–29** | Nearly. Identify the weakest section and redo those labs on the live path, not just offline. |
+| **17–23** | Not yet. Work Tracks 3 and 4 first — 55% of the exam — then reassess. |
+| **0–16** | Do not book yet. Complete every lab once, then take the practice exam cold. |
+
+Then take [`PRACTICE_EXAM.md`](PRACTICE_EXAM.md) under timed conditions. **≥80% is the target.**
+Score it per section: a 60-question paper weighted like the real one will expose an imbalance that
+a single overall percentage hides.
+
+---
+
+## You are not ready if...
+
+These are hard blockers. Any one of them will cost you multiple questions.
+
+- You cannot state the difference between **MCP** (connecting an agent to *tools*) and **A2A**
+  (connecting an agent to *other agents*).
+- You think **more agents** is the trigger for adopting A2A. The trigger is a **boundary** —
+  process, network, team or organisation.
+- You believe an IAM grant is equivalent to a **Principal Access Boundary**. One says what an
+  identity *may* do; the other caps what it can *ever* do.
+- You cannot draw the request path: **identity → gateway → Model Armor → agent → tool → sandbox**.
+- You think prompt engineering mitigates **prompt injection**.
+- You would run `UnsafeLocalCodeExecutor` anywhere near production.
+- You cannot explain what **session state** holds that **memory** does not.
+- You evaluate only the final answer and never the **trajectory**.
+- You pin production to a floating alias such as `gemini-flash-latest` and cannot explain the risk.
+- You use the term *Agent Engine* in an answer where the guide says **Agent Runtime**.
+
+---
+
+## Final week
+
+| When | Focus | Why |
+| :--- | :--- | :--- |
+| **Day 7–5** | Track 3 (33%) — rebuild labs 08–12 from scratch, not by reading | Recognition is not recall; the exam tests recall under a scenario |
+| **Day 4–3** | Track 4 (22%) — run `adk eval`, walk the deployment decision tree aloud | These two tracks are 55% of the paper |
+| **Day 2** | Track 5 (15%), then Tracks 1–2 (30%) | Governance is small but heavily trapped |
+| **Day 1** | Practice exam cold and timed. Score per section. Revisit only the weakest | Do not learn anything new today |
+
+## The day before
+
+- Re-read the decision trees and the "most likely tested distinctions" table in
+  [`STUDY_GUIDE.md`](STUDY_GUIDE.md).
+- Re-read the renamed-products glossary: **Agent Runtime**, **Agent Search**, **Agent Registry**,
+  **Agent Gateway**. Using the old name in your head is how you misread a question stem.
+- Skim [`docs/VERIFIED_FACTS.md`](docs/VERIFIED_FACTS.md) for the model catalog.
+- Do not start a new lab. Sleep.

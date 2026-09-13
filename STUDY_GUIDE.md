@@ -1,165 +1,197 @@
-# Google Cloud Certified Professional Agentic Architect — Comprehensive Study Guide
+# Google Cloud Certified Professional Agentic Architect — Study Guide
 
 > [!IMPORTANT]
-> **Unofficial Certification Guide & Training Notice**:
-> This document is an **unofficial** companion study guide. Candidates must refer to the official [Google Cloud Certification Exam Guide](https://cloud.google.com/certification) for authoritative exam objectives, and complete official interactive courses via [Google Cloud Skills Boost](https://www.cloudskillsboost.google/) (`skills.google`).
+> **Unofficial Certification Guide**: This document is an unofficial companion study guide. Refer to the official exam guide for authoritative objectives.
 
-This study guide provides an in-depth architectural and theoretical breakdown for every section of the Google Cloud Certified Professional Agentic Architect exam. Use this guide alongside the 13 hands-on modules and practice exams.
+This guide provides an in-depth architectural breakdown for the exam. It is ordered by the weight of each domain on the exam. Use it for final review before taking the exam.
 
----
-
-## Table of Contents
-1. [Domain 1: Building Agents Using Low-Code Tools (~13%)](#domain-1-building-agents-using-low-code-tools-13)
-2. [Domain 2: Using Coding Agents for Application Development (~17%)](#domain-2-using-coding-agents-for-application-development-17)
-3. [Domain 3: Developing Custom Agents (~33%)](#domain-3-developing-custom-agents-33)
-4. [Domain 4: Evaluating and Deploying Agentic Workflows (~22%)](#domain-4-evaluating-and-deploying-agentic-workflows-22)
-5. [Domain 5: Securing and Governing Agentic Workflows (~15%)](#domain-5-securing-and-governing-agentic-workflows-15)
-6. [Architectural Decision Cheatsheet](#architectural-decision-cheatsheet)
+## Glossary of Renamed Products
+- **Agent Runtime**: Formerly *Agent Engine*. Managed runtime for deploying agents.
+- **Agent Search**: Formerly *Vertex AI Search*.
+- **Agent Registry**: Central metadata, discovery, and governance catalog for agents, skills, and tools.
+- **Agent Gateway**: Reverse proxy for observing, securing, and routing traffic to agentic workflows.
 
 ---
 
-## Domain 1: Building Agents Using Low-Code Tools (~13%)
+## 1. Domain 3: Developing Custom Agents (~33%)
 
-### 1.1 Low-Code Platforms Overview
-Google Cloud provides low-code agent creation through **Gemini Enterprise Agent Designer** and **Customer Experience Agent Studio (CX Agent Studio)** (formerly Dialogflow CX).
+This is the largest and most critical domain. It requires a deep understanding of the **Agent Development Kit (ADK)** (version 2.9.0), the Google GenAI SDK, model selection, memory, and orchestration.
 
-![Low-Code vs Autonomous AI Agent Architecture](assets/diagrams/low_code_vs_agent.jpg)
+### The ADK Object Model
+To build agents in code, you must understand the ADK architecture:
 
-#### Key Architecture Concepts:
-- **Pages**: Fundamental state nodes representing distinct conversation stages. Each page maintains its own state, entry fulfillment, and active parameters.
-- **Transition Routes**: Conditional branches triggered by user intents, parameter matching, or agentic condition evaluation (e.g., `if $session.params.order_id != null`).
-- **Event Handlers**: Built-in fallback routes triggered by system events (e.g., `sys.no-match-default`, `sys.no-input-default`, webhook timeout).
-- **Prompt Templates**: In-console few-shot and chain-of-thought (CoT) patterns can steer low-code agents without Python. Treat private model scratchpads as non-observable; log concise decisions, tool calls, results, and policy outcomes instead.
+```mermaid
+classDiagram
+    class Runner {
+        +run(agent, context)
+    }
+    class Agent {
+        +name
+        +instruction
+        +model
+        +tools
+        +sub_agents
+    }
+    class Tools {
+        +execute()
+    }
+    class MemoryService {
+        +recall()
+        +store()
+    }
+    class SessionService {
+        +load()
+        +save()
+    }
 
-### 1.2 Enterprise Data Grounding & Multimodal Ingestion
-- **Agent Search (Vertex AI Search)**: Indexes unstructured documents (PDFs, HTML, Confluence, Google Drive) and provides semantic retrieval with automatic snippet citations.
-- **Multimodal Ingestion**: Gemini Enterprise natively processes multimodal payloads (video frame sequences, audio recordings, scanned receipts). Video timestamps and audio transcriptions are processed directly in the Gemini context window up to 2 million tokens.
+    Runner --> Agent : Orchestrates
+    Runner --> SessionService : Manages State
+    Agent --> Tools : Invokes
+    Agent --> MemoryService : Uses (VertexAiMemoryBankService)
+    Agent --> Agent : Invokes Sub-agents
+```
 
----
+### Model Selection Matrix
+Selecting the right model is a core exam skill. Do not rely on floating aliases (like `gemini-flash-latest`), memorize the pinned models and their specific use cases:
 
-## Domain 2: Using Coding Agents for Application Development (~17%)
+| Model ID | Primary Best Use Case | Capabilities & Limits |
+| :--- | :--- | :--- |
+| `gemini-3.7-flash` / `gemini-3.8-flash` | **Default Enterprise Agent Workhorse**: Complex reasoning, coding, tool orchestration, multi-step planning | 1M in / 65K out |
+| `gemini-2.5-pro` | Deep analytical synthesis, complex multi-document auditing, extreme mathematical proofs | 1M in / 65K out |
+| `gemini-3.5-flash-lite` | High-throughput classification, routing, basic sentiment extraction | 1M in / 65K out |
+| `gemma-4-26b-a4b-it` / `gemma-4-31b-it` | **Self-hosted / SLM**: Edge computing, air-gapped environments, strict data residency requirements | 262K in / 32K out |
+| `gemini-embedding-2` | **RAG / Vector Search**: Converting text to semantic embeddings | 8,192 input tokens limit |
+| `gemini-3.5-live-translate-preview` | **Live API**: Real-time bidirectional streaming | Native audio |
 
-### 2.1 Coding Agents & Developer Tooling
-Coding agents (e.g., **Google Antigravity**, **Claude Code on Google Cloud**) act as autonomous pair programmers that inspect codebases, execute shell commands, manage tests, and refactor applications.
+### Multi-Agent Orchestration Topologies
+Agents can be orchestrated using the ADK's `google.adk.workflow` graph engine or agentic protocols.
 
-![Coding Agent Sandboxes & Automated Remediation](assets/diagrams/coding_sandbox.jpg)
+```mermaid
+graph TD
+    subgraph "Sequential (Handoff)"
+        A[Agent A] -->|State| B[Agent B]
+    end
+    
+    subgraph "Parallel (Scatter-Gather)"
+        Router --> P1[Worker 1]
+        Router --> P2[Worker 2]
+        P1 --> Synthesizer
+        P2 --> Synthesizer
+    end
+    
+    subgraph "A2A Protocol (Decentralized)"
+        Rem1[Remote Agent 1] <-->|Negotiates| Rem2[Remote Agent 2]
+    end
+```
 
-#### Sandboxing Strategies:
-- **Antigravity Sandboxing**: Enforces path isolation, read/write workspace restrictions, and network access boundaries (Standard vs Bypass Sandbox Mode).
-- **Cloud Workstations**: Fully managed developer environments running inside private VPCs, enforcing zero-trust corporate security policies.
-- **GKE Sandboxes**: Using gVisor (`runsc`) container runtime to run untrusted agent-generated code with syscall filtering.
+- **Graph Workflow**: Deterministic edge-routing using `Workflow`, `FunctionNode`, and `JoinNode`.
+- **Agent2Agent (A2A)**: Stateful, decentralized negotiation over protocols using `google.adk.a2a`. Requires `a2a-sdk` (installed via `google-adk[a2a]`).
+- **Model Context Protocol (MCP)**: Agent-to-tool connection. `MCPToolset` standardizes tool access. 
 
-### 2.2 Customizing Antigravity with Skills, Plugins & Rules
-- **Skills (`skills/<name>/SKILL.md`)**: Progressive disclosure capabilities. The model only reads the full instructions when activated by relevance or explicit call.
-- **Rules (`GEMINI.md`, `AGENTS.md`)**: Contextual instructions walking up from the current directory to repository root.
-- **Plugins (`plugin.json`)**: Bundles packaging skills, rules, and MCP configurations for enterprise reuse.
-- **Lifecycle Hooks (`hooks.json`)**: Pre-tool execution, post-tool validation, and error recovery interceptors.
-- **Agents CLI (`agy`)**: Command-line tool to initialize, validate, benchmark, and deploy agent skills.
-
----
-
-## Domain 3: Developing Custom Agents (~33%)
-
-This is the largest domain in the exam. It requires master-level understanding of the **Agent Development Kit (ADK)**, the **Google GenAI SDK**, **Gemini 3.7 Flash**, and multi-agent coordination.
-
-### 3.1 Model Selection & Thinking Budget Matrix
-
-| Model | Primary Best Use Case | Context Window | Thinking Support | Latency / Cost Tier |
-| :--- | :--- | :---: | :---: | :---: |
-| **Gemini 3.7 Flash** | **Default Enterprise Agent Workhorse**: Complex reasoning, coding, tool orchestration, multi-step planning | 1M - 2M tokens | ✅ Dynamic Thinking Budget (128 - 64K tokens) | Ultra-Low Latency / Cost-Effective |
-| **Gemini 2.5 Pro** | Deep analytical synthesis, complex multi-document auditing, extreme mathematical proofs | 2M tokens | ✅ Built-in reasoning | Moderate Latency / Higher Cost |
-| **Gemini 2.5 Flash-Lite** | High-throughput classification, routing, basic sentiment extraction | 1M tokens | ❌ Fast deterministic | Lowest Latency / Lowest Cost |
-| **Gemma 2 (2B / 9B / 27B)** | On-device, edge computing, zero-network air-gapped environments via LiteRT | 8K tokens | ❌ Fine-tunable SLM | Self-hosted compute cost only |
-
-### 3.2 Agent Memory, State & Sessions
-
-![Multi-Tier AI Agent Memory Architecture](assets/diagrams/agent_memory_hierarchy.jpg)
-
-- **Short-Term Working Context**: Active conversation messages in the context window. Uses FIFO pruning or sliding-window summarization when approaching token limits.
-- **Managed Sessions**: Ephemeral or persistent session IDs storing conversation state, variables, and tool invocation history across turns.
-- **Agent Platform Memory Bank**: Long-term associative memory that extracts key user preferences, facts, and past decisions into a persistent semantic memory store.
-- **Redis / Firestore Backends**: Low-latency distributed session cache (Memorystore for Redis) for high-scale multi-instance agent deployments.
-
-### 3.3 Enterprise RAG & Vector Search 1.0
-
-![Enterprise RAG and Vertex AI Vector Search 1.0](assets/diagrams/rag_vector_search.jpg)
-
-- **Embeddings**: `text-embedding-005` (768-dim / 1536-dim) with Matryoshka dimensionality reduction for optimized vector storage.
-- **Vector Search 1.0 (Vertex AI Vector Search)**: Scalable, low-latency approximate nearest neighbor (ANN) search using ScaNN (Score-aware Scalable Nearest Neighbors).
-- **Agent Retrieval**: Native tool connector allowing agents to query vector indexes with dynamic filters, similarity thresholds, and reranking.
-
-### 3.4 Model Context Protocol (MCP) & MCP Toolbox for Databases
-
-![Google Cloud Model Context Protocol (MCP) Toolbox for Databases](assets/diagrams/mcp_database_diagram.jpg)
-
-- **MCP Protocol**: Standardized client-server protocol over `stdio` or `Server-Sent Events (SSE)` exposing resources, prompts, and tools.
-- **Google Cloud MCP Toolbox**: Pre-built MCP servers for BigQuery, Cloud SQL, Spanner, AlloyDB, and Google Cloud Storage.
-
-### 3.5 Multi-Agent Orchestration Patterns & Agent2Agent (A2A)
-
-![Multi-Agent Systems Enterprise Architecture & A2A Protocol](assets/diagrams/multi_agent_a2a.jpg)
-
-- **Sequential Agents**: Output of Agent A becomes input to Agent B (linear data processing).
-- **Parallel Agents**: Multiple specialist agents analyze the same task concurrently; results are synthesized by a reduction agent.
-- **Hierarchical Supervisor**: Central router decides which subagent to invoke dynamically, passing state and receiving output.
-- **Agent2Agent (A2A)**: Direct negotiation and stateful handoff protocol between decentralized autonomous agents.
+*Covered in: [Track 3 / Lab 07-12](tracks/03_custom_agents)*
 
 ---
 
-## Domain 4: Evaluating and Deploying Agentic Workflows (~22%)
+## 2. Domain 4: Evaluating and Deploying Agentic Workflows (~22%)
 
-### 4.1 Agent Evaluation Frameworks
-Agent evaluation differs fundamentally from traditional static ML evaluation because agents interact iteratively with environments and tools.
+### Deployment Runtime Decision Tree
+Understanding where to deploy your agent based on cost, latency, and control is frequently tested. 
 
-![Google Cloud AgentOps Architecture](assets/diagrams/agentops_eval_tracing.jpg)
+```mermaid
+graph TD
+    Start[Choose Deployment Runtime] --> Q1{Require Kubernetes level control?}
+    Q1 -- Yes --> GKE[GKE <br> `adk deploy gke`]
+    Q1 -- No --> Q2{Need managed agent specific services?}
+    Q2 -- Yes --> AE[Agent Runtime <br> `adk deploy agent_engine`]
+    Q2 -- No --> CR[Cloud Run <br> `adk deploy cloud_run`]
+```
 
-#### Core Metrics:
-1. **Tool Selection Accuracy**: Did the agent pick the correct tool from the available schema?
-2. **Argument Precision**: Were the extracted function arguments valid, type-safe, and complete?
-3. **Retrieval Faithfulness**: Are the agent's assertions supported by the retrieved context, with unsupported-claim rate measured explicitly?
-4. **Answer Relevance**: Did the final response directly address user intent without extraneous commentary?
-5. **Task Completion Rate**: Percentage of multi-turn goals resolved without human intervention or failure.
+- **Agent Runtime**: Managed agent-hosting, native ADK support, automatic session management.
+- **Cloud Run**: Standard serverless containerized HTTP/gRPC agents. Fast cold starts, scale-to-zero.
+- **GKE**: Complex multi-agent clusters, strict VPC isolation, and gVisor sandboxing via `GkeCodeExecutor` (requires `google-adk[extensions]`).
 
-### 4.2 Production Deployment Runtimes Comparison
+### Evaluation
+Agent evaluation goes beyond static prompt scoring. Use `AgentEvaluator` (via `adk eval`) for:
+- **Tool Selection Quality**: Did the agent pick the right tool?
+- **Trajectory Evaluation**: `trajectory_evaluator` checks the path taken to reach the final state.
+- **Final Response Quality**: `final_response_match_v2` checks the ultimate answer against golden datasets.
 
-| Runtime | Best For | Cold Start | Scaling | State Management |
-| :--- | :--- | :---: | :---: | :---: |
-| **Agent Runtime** (formerly Agent Engine) | **Managed Agent Hosting**: Native ADK support, automatic session management, built-in Memory Bank | Low | Automatic Serverless | Built-in Managed Sessions & Memory Bank |
-| **Cloud Run** | **Standard Custom Microservices**: Containerized FastAPI / Express agents, HTTP/gRPC triggers | Fast (<1s) | 0 to 1000+ instances | External (Redis / Firestore) |
-| **Google Kubernetes Engine (GKE)** | **Complex Multi-Agent Clusters**: High GPU/TPU requirements, gVisor sandboxing, strict VPC isolation | Slower (Pod pull) | Horizontal Pod Autoscaling (HPA) | Distributed State Store (StatefulSets/Redis) |
-
-### 4.3 Troubleshooting Production Agent Failures
-- **Semantic Drift**: Agent loses original user goal across long multi-turn tool loops. *Mitigation: Re-inject root goal in system prompt scratchpad.*
-- **Infinite Reasoning Loops**: Agent calls the same failing tool repeatedly. *Mitigation: Hard turn budgets (`max_turns=5`), cycle detection hooks, and explicit fallback triggers.*
-- **Latency Bottlenecks**: High TTFT (Time to First Token) due to large tool definitions or excessive context. *Mitigation: Progressive tool disclosure, parallel tool calling, and prompt caching.*
-
----
-
-## Domain 5: Securing and Governing Agentic Workflows (~15%)
-
-### 5.1 Security Architecture & Access Boundaries
-
-![Google Cloud AI Agent Security & Governance Architecture](assets/diagrams/security_model_armor.jpg)
-
-#### Key Governance Components:
-- **Agent Identity**: Dedicated IAM principal representing the autonomous agent, independent of the invoking end-user.
-- **Principal Access Boundary (PAB)**: IAM boundary that caps the resources a principal can access. It does not grant permissions and is distinct from VPC Service Controls.
-- **Agent Gateway**: Reverse proxy enforcing authentication, rate-limiting, audit logging, and payload validation.
-- **Model Armor**: Real-time security filter guarding against prompt injections, system prompt exfiltration, malicious tool hijacking, and PII leakage (integrated with Sensitive Data Protection / Cloud DLP).
-- **Human-in-the-Loop (HITL)**: Deterministic policy requiring interactive human approval before executing irreversible actions (e.g., executing database mutations, sending financial wires).
+*Covered in: [Track 4 / Lab 13-15](tracks/04_evaluate_and_deploy)*
 
 ---
 
-## Architectural Decision Cheatsheet
+## 3. Domain 2: Using Coding Agents for Application Development (~17%)
+
+### Code Executors and Sandboxing
+When agents write and execute code, they must be strictly isolated.
+- **GkeCodeExecutor**: Executes Python in a dedicated GKE Pod. Supports `job` and `sandbox` isolation modes. `sandbox` provides stricter security (e.g., gVisor).
+- **CloudRunSandboxCodeExecutor**: Runs inside a Cloud Run container via the `sandbox` CLI. 
+- **UnsafeLocalCodeExecutor**: Runs code directly on the host machine. **Highly unsafe**, likely an exam distractor for what *not* to use in production.
+
+### Customizing Coding Agents
+- **Antigravity SDK**: Build custom coding agents.
+- **MCP Servers**: Connect coding agents to tools and IDEs securely.
+
+*Covered in: [Track 2 / Lab 04-06](tracks/02_coding_agents)*
+
+---
+
+## 4. Domain 5: Securing and Governing Agentic Workflows (~15%)
+
+Security spans multiple distinct layers of enforcement.
+
+```mermaid
+flowchart LR
+    User([User Identity]) --> ID[Agent Identity <br> OAuth 2.0 / PAB]
+    ID --> GW[Agent Gateway <br> Observability]
+    GW --> MA[Model Armor <br> Content Filter]
+    MA --> AG[Agent Engine]
+    AG --> Reg[Agent Registry <br> Tool Governance]
+    AG --> HITL[Human in the Loop]
+    AG --> Exec[Secure Sandbox]
+```
+
+- **Agent Identity**: Dedicated workload principal (`GcpAuthProvider`). A **Principal Access Boundary (PAB)** restricts the *maximum* resources this identity can access, acting as a blast-radius cap.
+- **Agent Gateway**: Reverse proxy for rate limiting, tracking, and traffic monitoring.
+- **Model Armor**: Inspects prompts and responses. Tested frequently: `block_on_screening_failure` (Fail-closed vs. Fail-open).
+- **Agent Registry**: Central governance plane (`AgentRegistry`). Provides discovered endpoints for remote A2A agents and `MCPToolset`.
+- **Human-in-the-Loop (HITL)**: Required for consequential actions. ADK implements this via `request_input` or `get_user_choice`.
+
+*Covered in: [Track 5 / Lab 16-18](tracks/05_secure_and_govern)*
+
+---
+
+## 5. Domain 1: Building Agents Using Low-Code Tools (~13%)
+
+### Low-Code Workflows
+- **Gemini Enterprise Agent Designer / CX Agent Studio**: Use for deterministic, state-based workflows.
+- **Pages**: Nodes representing conversation stages.
+- **Transition Routes**: Branching logic based on parameters or intent matching.
+- **Event Handlers**: Built-in fallback routes.
+- **Multimodal**: Native ingestion of images, video, and audio directly into the context window, avoiding separate OCR/transcription pipelines.
+
+*Covered in: [Track 1 / Lab 01-03](tracks/01_low_code_agents)*
+
+---
+
+## Decision Tree: What service should I use?
 
 | Scenario / Requirement | Recommended Architecture | Exam Rationale |
 | :--- | :--- | :--- |
-| Business user needs quick visual customer service bot with structured form filling | **CX Agent Studio / Agent Designer** | Low-code, state-machine pages and routes minimize coding overhead. |
-| Autonomous coding agent needing safe execution of untrusted scripts | **Antigravity with GKE Sandbox (gVisor)** | Ensures kernel-level isolation and network restriction for code execution. |
-| Complex enterprise reasoning with strict sub-second tool execution | **Gemini 3.7 Flash with Dynamic Thinking** | Best balance of high reasoning capability, low latency, and tool proficiency. |
-| Long-term memory across sessions spanning months | **Agent Platform Memory Bank** | Automatically indexes and semantically recalls user preferences and facts. |
-| Agent needs to query existing BigQuery and Cloud SQL without custom API code | **Google Cloud MCP Toolbox for Databases** | Standardized MCP servers provide instant, secure SQL tool interfaces. |
-| Autonomous workflow involving 3 specialized teams (Sales, Inventory, Billing) | **Agent2Agent (A2A) with Hierarchical Supervisor** | Supervisor routes tasks to specialist agents using A2A handoff protocols. |
-| Evaluation of multi-turn tool calling before production promotion | **ADK Evalset with Golden Datasets & Gemini 3.7 Flash Autorater** | Quantitative validation of tool selection, argument accuracy, and faithfulness. |
-| Restricting autonomous agents from accessing payroll database | **Agent Identity with Principal Access Boundary (PAB)** | Strictly scopes the agent's IAM token to authorized data stores. |
-| Protecting public-facing agents against jailbreaks and prompt injections | **Model Armor + Agent Gateway** | Inline content inspection filters malicious payloads before LLM inference. |
+| Need cross-conversation, long-term semantic memory | **Agent Platform Memory Bank** | `VertexAiMemoryBankService` provides durable, associative recall beyond single sessions. |
+| Need strict blast-radius limitation for an agent | **Agent Identity with Principal Access Boundary (PAB)** | PAB is a hard cap on resources a principal can access, unlike IAM which grants access. |
+| Agent needs to query proprietary databases without custom code | **Google Cloud MCP Servers** | MCP provides standardized client-server tool access out of the box. |
+| Decentralized collaboration between distinct agent teams | **A2A Protocol** | Agent-to-Agent allows stateful negotiation rather than a rigid top-down supervisor. |
+| Securely executing generated code in production | **GkeCodeExecutor (Sandbox Mode)** | gVisor provides syscall-level isolation for untrusted code execution. |
+| Guarding against prompt injection and PII leakage | **Model Armor** | `ModelArmorPlugin` filters malicious inputs/outputs directly in the ADK pipeline. |
+
+## Most Likely To Be Tested Distinctions
+
+| The Distinction | Why it matters |
+| :--- | :--- |
+| **MCP vs. A2A** | MCP connects agents to **tools/resources**. A2A connects agents to **other agents**. |
+| **Fail-closed vs. Fail-open Guardrails** | Configured via Model Armor's `block_on_screening_failure`. Crucial for high-security environments. |
+| **PAB vs. IAM Allow Policies** | IAM grants access; PAB limits the *maximum* possible access (a ceiling, not a grant). |
+| **Agent Runtime vs. Cloud Run vs. GKE** | Agent Runtime has managed ADK-specific integrations (e.g., Memory Bank); Cloud Run is portable serverless container choice; GKE offers Kubernetes-level sandbox control (gVisor). |
+| **Session State vs. Memory** | Sessions (`VertexAiSessionService`) hold turn-by-turn state for the current interaction. Memory (`VertexAiMemoryBankService`) persists long-term facts. |
+| **Tool-Trajectory vs. Final-Response Scoring** | `trajectory_evaluator` validates *how* the agent reached the answer (e.g., correct tools). `final_response_match_v2` validates *what* the answer is. |

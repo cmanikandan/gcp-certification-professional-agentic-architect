@@ -55,11 +55,11 @@ LAB_DIRS = _lab_dirs()
 LAB_IDS = [f"{lab.parent.name}/{lab.name}" for lab in LAB_DIRS]
 
 
-def test_all_eighteen_labs_are_present() -> None:
-    assert len(LAB_DIRS) == 18, f"expected 18 labs, found {len(LAB_DIRS)}: {LAB_IDS}"
+def test_all_twenty_labs_are_present() -> None:
+    assert len(LAB_DIRS) == 20, f"expected 20 labs, found {len(LAB_DIRS)}: {LAB_IDS}"
 
     numbers = sorted(int(lab.name.split("_")[1]) for lab in LAB_DIRS)
-    assert numbers == list(range(1, 19)), f"lab numbering has gaps or duplicates: {numbers}"
+    assert numbers == list(range(1, 21)), f"lab numbering has gaps or duplicates: {numbers}"
 
 
 @pytest.mark.parametrize("lab", LAB_DIRS, ids=LAB_IDS)

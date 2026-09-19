@@ -6,7 +6,7 @@ response (``generativelanguage.googleapis.com/v1beta``) on 2026-09-13.
 Why this file exists
 --------------------
 Certification study material is worthless if the model IDs are wrong. Rather than
-scattering string literals across 18 labs, every lab imports from here. If Google
+scattering string literals across 20 labs, every lab imports from here. If Google
 ships a new model, you update one file.
 
 Exam relevance
@@ -42,8 +42,11 @@ DEFAULT_JUDGE_MODEL = "gemini-3.8-flash"
 #: RAG embeddings.
 DEFAULT_EMBEDDING_MODEL = "gemini-embedding-2"
 
-#: Self-hosted / open-weights option (Model Garden, GKE, or Ollama).
+#: Self-hosted / open-weights dense option (Model Garden, GKE, or Ollama).
 DEFAULT_OSS_MODEL = "gemma-4-31b-it"
+
+#: Self-hosted / open-weights Mixture-of-Experts (MoE) option for lower active-parameter latency on GKE GPUs.
+DEFAULT_OSS_MOE_MODEL = "gemma-4-26b-a4b-it"
 
 
 class Hosting(str, Enum):

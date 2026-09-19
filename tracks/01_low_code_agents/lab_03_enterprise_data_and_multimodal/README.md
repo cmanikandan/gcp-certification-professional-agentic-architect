@@ -35,12 +35,19 @@ When you attach `DiscoveryEngineSearchTool` or configure Agent Search in the con
 **Multimodal Ingestion:**
 A native multimodal model (like `gemini-3.7-flash`) can accept a GCS URI of a video and reason about both the audio and visual frames simultaneously.
 
+**Gemini Enterprise Naming Taxonomy (`Gemini Enterprise` vs. `Gemini Enterprise App` vs. `GEAP`):**
+- **Gemini Enterprise (Umbrella Brand):** Now represents the entire Google Cloud enterprise agentic umbrella across both low-code and custom code.
+- **Gemini Enterprise App (`GEApp`):** Formerly *Google Agentspace*. The specific turn-key employee-facing web application and enterprise search interface that connects to first- and third-party data stores (Google Drive, SharePoint, Jira, Confluence, BigQuery, Cloud Storage) via **Agent Search** (`DiscoveryEngineSearchTool` / `VertexAiSearchTool`). *Note: Exam scenarios frequently say "Gemini Enterprise" when referring specifically to the **Gemini Enterprise App (`GEApp`)** experience.*
+- **Agent Platform (`GEAP` / Vertex AI Agent Platform):** The code-first developer platform (ADK, Agent Runtime, Agent Registry, Memory Bank) that integrates with `GEApp` or runs standalone across **GKE**, **Cloud Run**, **VPC Service Controls**, and **Cloud Storage**.
+
 ## 4. The decision that matters
 
-### Native Multimodal vs Pre-processing Pipeline
+### Native Multimodal vs Pre-processing Pipeline & Enterprise Naming
 
 | If you need... | Use | Why not the alternative |
 | :--- | :--- | :--- |
+| **Turn-key employee search & assistant web app with Document-Level ACLs** | **Gemini Enterprise App (`GEApp`) + Agent Search** | Building a custom web portal + custom chunking/ACL syncing from scratch in GKE duplicates built-in `GEApp` connector security. |
+| **Custom multi-agent orchestration backed by VPC databases, GKE GPUs, or Cloud Run microservices surfaced to employees** | **Register custom ADK agent (`GEAP` / GKE / Cloud Run) into Gemini Enterprise App (`GEApp`) via A2A / Agent Registry** | Pure low-code prompts inside Agent Designer cannot run custom gVisor sandboxes or self-hosted GKE GPU models. |
 | **Cross-modal reasoning (e.g., "why is the person in the video laughing?")** | Native Multimodal Prompting (`gemini-3.7-flash` / `gemini-omni`) | A Speech-to-Text pipeline loses the visual context of the laugh. |
 | **Deterministic structured extraction at massive scale** | Pre-processing Pipeline (Speech-to-Text, Document AI) | Native multimodal models are more expensive and slower for bulk transcription than dedicated API services. |
 | **To index video content for future text-based search** | Pre-processing Pipeline | Vector databases typically index text embeddings; you need to extract the transcript first. |

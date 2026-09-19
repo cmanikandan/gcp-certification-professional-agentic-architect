@@ -1274,16 +1274,359 @@ Answers are collapsed by default. Read the scenario, choose your answer, and exp
 
 ---
 
+### Question 61
+**Scenario**: Your enterprise architecture team is standardizing terminology and platform boundaries across two initiatives:
+1. Giving 50,000 non-technical employees a unified web interface to search SharePoint, Google Drive, and Jira with automatic Document-Level ACL enforcement and out-of-the-box assistant capabilities.
+2. Building a custom Python ADK multi-agent system that runs code inside GKE gVisor sandboxes and queries VPC-internal Cloud SQL databases via MCP.
+
+In exam scenarios and architectural blueprints, the prompt states: *"Connect your custom ADK specialist agent to Gemini Enterprise so employees can invoke it from their central search workspace."*
+
+**How should you interpret "Gemini Enterprise" in this architecture and integrate the two environments?**
+- **A)** "Gemini Enterprise" is now the umbrella brand, and in this context specifically refers to the **Gemini Enterprise App (`GEApp`)** employee web experience. You deploy the custom ADK agent on **GKE** or **Agent Runtime** (part of **Agent Platform / `GEAP`**), register it in **Agent Registry** with an A2A Agent Card, and surface it inside **Gemini Enterprise App (`GEApp`)** with OAuth 2.0 identity propagation.
+- **B)** Rewrite the GKE custom agent entirely as a zero-shot prompt template inside CX Agent Studio, because Gemini Enterprise App cannot invoke external GKE or Cloud Run agents.
+- **C)** Deploy the SharePoint and Drive connectors directly inside a GKE `GkeCodeExecutor` pod without using Agent Search.
+- **D)** Disable Document-Level ACLs in Agent Search and rely on a single shared Service Account for all 50,000 employees.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: **Gemini Enterprise** is the overarching umbrella brand, while **Gemini Enterprise App (`GEApp`, formerly Google Agentspace)** is the turn-key employee search & assistant web application. Real-world enterprise agentic architectures are hybrid: `GEApp` handles turn-key enterprise search (`Agent Search` with ACL inheritance) and acts as the front door, while complex custom agents run on **GKE**, **Cloud Run**, or **Agent Runtime** (`GEAP`) and integrate via **A2A** and **Agent Registry**. → Lab 03 — Enterprise Data and Multimodal & Lab 12 — Multi-Agent and A2A.
+- **Why B is incorrect**: CX Agent Studio / Agent Designer cannot replace custom GKE gVisor code execution or VPC-private MCP workloads.
+- **Why C is incorrect**: Building custom connectors inside a code-execution sandbox violates separation of concerns and loses managed Agent Search ACL indexing.
+- **Why D is incorrect**: Using a single shared Service Account without identity propagation leaks confidential documents across employees.
+</details>
+
+---
+
+### Question 62
+**Scenario**: An application security engineering team wants to automate the remediation of C/C++ and Python application-layer vulnerabilities (CVEs and sanitizer crashes) discovered in their CI pipeline. The solution must autonomously localize the root cause in the repository, synthesize a code patch, reproduce the exploit in an isolated sandbox, and run regression and fuzz tests to prove the patch eliminates the vulnerability before opening a pull request.
+
+**Which Google Cloud coding agent capability and execution environment is purpose-built for this workflow?**
+- **A)** **Code Mender** paired with **GKE Agent Sandbox (`GkeCodeExecutor` with `executor_type="sandbox"`)**
+- **B)** Agent Designer in-console prompt templates with `UnsafeLocalCodeExecutor`
+- **C)** CX Agent Studio Transition Routes with `VertexAiSearchTool`
+- **D)** `VertexAiMemoryBankService` with floating model alias `gemini-flash-latest`
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: Objective 2.1 explicitly covers *"Using coding agents to refactor source code, optimize execution runtimes, and patch application-layer vulnerabilities"*. **Code Mender** is Google's autonomous vulnerability-patching coding agent that combines root-cause analysis, patch synthesis, and automated fuzz/regression verification inside a kernel-isolated sandbox (**GKE Agent Sandbox / gVisor**). → Lab 05 — Secure Sandboxes.
+- **Why B is incorrect**: `UnsafeLocalCodeExecutor` runs untrusted exploit and fuzzing payloads directly on the host OS, creating a severe security risk.
+- **Why C is incorrect**: CX Agent Studio is a conversational state machine for customer experience flows, not an autonomous vulnerability-patching agent.
+- **Why D is incorrect**: Memory Bank stores conversational memories across sessions and does not localize or patch code vulnerabilities.
+</details>
+
+---
+
+### Question 63
+**Scenario**: You are deploying a custom ADK multi-agent system. Initially, the team planned to deploy all agents to **Agent Runtime** (`adk deploy agent_engine`) to minimize operational overhead. However, the updated security and model architecture introduces three new requirements:
+1. One specialist agent must run an open-weight `gemma-4-26b-a4b-it` model with custom LoRA adapters on dedicated NVIDIA L4 GPUs inside your VPC.
+2. Multi-turn requests to the self-hosted model must route based on live GPU KV-cache utilization and prefix-cache affinity.
+3. Untrusted Python scripts generated by the agent must execute in gVisor kernel-isolated pods (`runtimeClassName: gvisor`).
+
+**Why must you choose GKE (`adk deploy gke`) over Agent Runtime for this workload?**
+- **A)** Agent Runtime is a managed serverless environment that does not allow attaching custom GPU node pools for self-hosted vLLM serving, does not support **GKE Inference Gateway** (`InferencePool` KV-cache routing), and cannot schedule custom **GKE Agent Sandbox (`gVisor`)** pod templates.
+- **B)** Agent Runtime does not support the Python `google-adk` SDK or `VertexAiMemoryBankService`.
+- **C)** Agent Runtime cannot make outbound HTTPS calls to Gemini SaaS models.
+- **D)** Agent Runtime only supports Java and Go containers, whereas GKE supports Python.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: While **Agent Runtime** (`adk deploy agent_engine`) is ideal for zero-ops Python ADK agents calling managed Gemini APIs, its key architectural limitations are that you cannot provision custom GPU node pools for self-hosted open-weight models (`Gemma 4`), cannot deploy **GKE Inference Gateway** (`InferencePool` / `InferenceModel`) for KV-cache and LoRA routing, and cannot customize node-level **gVisor (`GkeCodeExecutor` `sandbox` mode)** or DaemonSet networking. Those requirements mandate **GKE**. → Lab 14 — Deployment Runtimes & Lab 19 — GKE Inference Gateway and GPUs.
+- **Why B is incorrect**: Agent Runtime natively supports Python `google-adk` and `VertexAiMemoryBankService`.
+- **Why C is incorrect**: Agent Runtime natively calls Gemini models on Vertex AI.
+- **Why D is incorrect**: Agent Runtime is specifically built for Python ADK/agent deployments.
+</details>
+
+---
+
+### Question 64
+**Scenario**: You are hosting `gemma-4-31b-it` using vLLM across a pool of 8 NVIDIA A100 GPU pods on GKE to power a multi-turn financial research agent. Because the agent sends a 32,000-token system prompt and tool specification on every turn, your standard Kubernetes L7 HTTP Load Balancer routes consecutive turns of the same conversation to different GPU pods. This forces every pod to recompute the 32,000-token prefill from scratch, spiking Time-To-First-Token (TTFT) and saturating GPU KV-caches. Additionally, nightly batch evaluation jobs frequently starve live user conversations.
+
+**Which architecture should you deploy on GKE to solve both problems?**
+- **A)** Deploy **GKE Inference Gateway** with an **`InferencePool`** (using the Endpoint Picker extension for KV-cache and prefix-cache affinity routing) and configure **`InferenceModel`** criticality tiers (`Critical` for interactive agent turns, `Sheddable` for batch evaluation jobs).
+- **B)** Replace the L7 HTTP Load Balancer with a L4 TCP Network Load Balancer and enable client IP session affinity.
+- **C)** Configure Horizontal Pod Autoscaler (HPA) to scale the vLLM pods based on container CPU utilization above 80%.
+- **D)** Move the vLLM GPU pods from GKE to Cloud Functions Gen 2.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: **GKE Inference Gateway** (`InferencePool` + `InferenceModel`) uses an Endpoint Picker (EPP) that scrapes real-time vLLM GPU metrics. It routes multi-turn agent requests to the GPU pod that already holds the matching prompt prefix in its KV-cache (eliminating redundant prefill computation and slashing TTFT), routes LoRA requests to pods with the adapter loaded in VRAM, and sheds `Sheddable` batch traffic when KV-cache saturation spikes to protect `Critical` interactive agent turns. → Lab 19 — GKE Inference Gateway and GPUs.
+- **Why B is incorrect**: L4 TCP client-IP affinity fails when requests arrive through a shared Agent Gateway or web backend proxy (all traffic shares the proxy's IP) and has zero awareness of GPU KV-cache memory saturation.
+- **Why C is incorrect**: LLM inference on GPUs is bottlenecked by GPU HBM KV-cache saturation and request queue depth (`vllm:gpu_cache_usage_perc`), not host CPU percentage.
+- **Why D is incorrect**: Cloud Functions does not support multi-A100 GPU pools or stateful vLLM KV-cache pools.
+</details>
+
+---
+
+### Question 65
+**Scenario**: You are designing a GKE cluster that must simultaneously host:
+1. Self-hosted `gemma-4-26b-a4b-it` inference pods requiring NVIDIA L4 GPUs.
+2. ADK `GkeCodeExecutor(executor_type="sandbox")` pods requiring **GKE Sandbox (`gVisor`)** to run untrusted Python scripts generated by coding agents.
+
+When your DevOps engineer attempts to create a single GKE node pool with both `--accelerator type=nvidia-l4` and `--sandbox type=gvisor`, the `gcloud container node-pools create` command fails.
+
+**What is the correct GKE architectural configuration?**
+- **A)** Create **two separate node pools** within the same GKE cluster: a **GPU node pool** (`g2-standard` with NVIDIA L4 GPUs) for the `InferencePool` vLLM pods, and a dedicated **CPU node pool with GKE Sandbox (`--sandbox="type=gvisor"`)** for the `GkeCodeExecutor(executor_type="sandbox")` pods, using Kubernetes node selectors/taints to schedule each workload onto its matching pool.
+- **B)** Change `GkeCodeExecutor` to `UnsafeLocalCodeExecutor` so all code runs inside the GPU container without gVisor.
+- **C)** Deploy two completely separate GCP organizations because GKE cannot support GPUs and sandboxes in the same cluster.
+- **D)** Switch `GkeCodeExecutor` to `executor_type="job"` on the GPU nodes, because `job` mode provides the exact same gVisor kernel syscall interception as `sandbox` mode.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: In GKE, a single node pool cannot combine hardware GPU accelerators with GKE Sandbox (`gVisor` `runsc`) on the same VM nodes. The standard enterprise pattern is a multi-node-pool GKE cluster: a GPU node pool serves the open-weight `InferencePool`, and a separate `--sandbox="type=gvisor"` CPU node pool runs `GkeCodeExecutor(executor_type="sandbox", sandbox_gateway_name=..., sandbox_template=...)`. → Lab 19 — GKE Inference Gateway and GPUs.
+- **Why B is incorrect**: `UnsafeLocalCodeExecutor` removes all isolation and exposes the GPU host and credentials to arbitrary code execution.
+- **Why C is incorrect**: A single GKE cluster natively supports multiple heterogeneous node pools.
+- **Why D is incorrect**: `executor_type="job"` runs standard containers sharing the host Linux kernel and does **not** provide gVisor isolation (explicitly warned in `GkeCodeExecutor`'s docstring).
+</details>
+
+---
+
+### Question 66
+**Scenario**: In ADK 2.9.0, you are building a hierarchical multi-agent system. A top-level `LlmAgent` named `ChiefOrchestrator` needs to dynamically route user requests either to an interactive `SupportAgent` (`LlmAgent`) or to a deterministic 3-step compliance pipeline (`Ingest -> Audit -> Archive`) that must execute in strict sequence as a `sub_agent` of `ChiefOrchestrator`.
+
+When you inspect ADK 2.9.0, you notice `SequentialAgent` emits a `DeprecationWarning` recommending `google.adk.workflow.Workflow`. However, passing a `Workflow` instance inside `ChiefOrchestrator(sub_agents=[...])` raises a validation error.
+
+**How should you architect this in ADK 2.9.0?**
+- **A)** Use `SequentialAgent` for the 3-step compliance sub-pipeline inside `ChiefOrchestrator.sub_agents` (or wrap the `Workflow` inside an `AgentTool`), because ADK 2.9.0's `DeprecationWarning` explicitly states: *"Workflow cannot yet be used as an LlmAgent sub-agent."*
+- **B)** Delete `ChiefOrchestrator` and force all users to call three separate HTTP endpoints manually in order.
+- **C)** Put all three compliance agents inside `ParallelAgent` so they run simultaneously.
+- **D)** Pass `disallow_transfer_to_peers=True` on `Workflow` to bypass the Pydantic type check.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: As verified in ADK 2.9.0 (`docs/VERIFIED_FACTS.md`), `SequentialAgent` emits: `DeprecationWarning: SequentialAgent is deprecated in favor of Workflow and will be removed in a future version. Workflow cannot yet be used as an LlmAgent sub-agent.` Therefore, when nesting a deterministic sequential pipeline directly inside `LlmAgent.sub_agents` (or wrapping it as a callable `AgentTool`), `SequentialAgent` remains necessary today. → Lab 08 — ADK Fundamentals & Lab 12 — Multi-Agent and A2A.
+- **Why B is incorrect**: Breaks autonomous orchestration by pushing orchestration logic onto the client.
+- **Why C is incorrect**: `ParallelAgent` runs all steps concurrently rather than in the required strict `Ingest -> Audit -> Archive` order.
+- **Why D is incorrect**: `disallow_transfer_to_peers` is an `LlmAgent` field, not a `Workflow` field.
+</details>
+
+---
+
+### Question 67
+**Scenario**: Your organization operates a decentralized multi-agent ecosystem across three Google Cloud projects:
+- An **Order Triage Agent** running on **Agent Runtime** (`project-retail`).
+- A **Fraud Scoring Agent** running on **GKE** (`project-risk`) exposed via the **Agent2Agent (A2A)** protocol.
+- A **Ledger MCP Server** running on **Cloud Run** (`project-finance`) exposing BigQuery and Cloud SQL tools via **Model Context Protocol (MCP)**.
+
+Security policy forbids hardcoding service URLs in agent source code and requires that agents only communicate with centrally vetted A2A peers and MCP servers.
+
+**How should the Order Triage Agent discover and bind to both the Fraud Scoring Agent and the Ledger MCP Server in ADK 2.9.0?**
+- **A)** Instantiate `AgentRegistry(project_id=..., location=...)` from `google.adk.integrations.agent_registry` and call `registry.get_remote_a2a_agent(...)` to bind the A2A Fraud Scoring Agent and `registry.get_mcp_toolset(...)` to bind the governed Ledger `MCPToolset`.
+- **B)** Use `MCPToolset` to connect to the Fraud Scoring Agent and `A2aRemoteAgentConfig` to query the Cloud SQL database directly.
+- **C)** Store hardcoded IP addresses in a public GitHub repository and fetch them using `UnsafeLocalCodeExecutor`.
+- **D)** Use `GCPSkillRegistry` (`get_skill`) to establish network sockets to remote A2A agents.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: `AgentRegistry` (`google.adk.integrations.agent_registry.AgentRegistry`) is the central discovery and governance plane that ties **A2A** and **MCP** together. It provides `get_remote_a2a_agent()` (which resolves the remote agent's endpoint and Agent Card from the registry) and `get_mcp_toolset()` (which returns a ready-to-use `MCPToolset` for a registered MCP server). → Lab 12 — Multi-Agent and A2A & Lab 20 — E2E AI Threat Defense.
+- **Why B is incorrect**: Reverses the protocols: **A2A** is for agent-to-agent negotiation, while **MCP** is for agent-to-tool/database connections.
+- **Why C is incorrect**: Hardcoding IPs and running `UnsafeLocalCodeExecutor` violates both dynamic governance and sandbox security.
+- **Why D is incorrect**: `GCPSkillRegistry` manages reusable skill instructions/frontmatter (`L1/L2/L3`), not live A2A agent endpoints or MCP server discovery.
+</details>
+
+---
+
+### Question 68
+**Scenario**: You are designing an iterative code-review architecture in ADK where a `GeneratorAgent` writes a SQL migration script and stores it in `session.state["draft_sql"]` via `output_key="draft_sql"`. A `CriticAgent` then validates the SQL against schema rules. This `Generator -> Critic` cycle must repeat until `CriticAgent` approves the SQL, or stop after at most 4 iterations to prevent an infinite billing loop.
+
+**Which ADK orchestration pattern and termination mechanism should you configure?**
+- **A)** Wrap `GeneratorAgent` and `CriticAgent` inside a `LoopAgent(max_iterations=4, sub_agents=[GeneratorAgent, CriticAgent])` and equip `CriticAgent` with the built-in `exit_loop` tool from `google.adk.tools` to terminate early when the SQL passes validation.
+- **B)** Use `ParallelAgent` with `max_concurrency=4` and call `transfer_to_agent` inside a prompt.
+- **C)** Set `block_on_screening_failure=True` on `ModelArmorConfig` to stop the loop after 4 turns.
+- **D)** Rely on the LLM to count to 4 in its system prompt without `max_iterations`.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: `LoopAgent` enforces a hard deterministic cap via `max_iterations=4` (preventing runaway token loops), while the built-in `exit_loop` tool (`from google.adk.tools import exit_loop`) allows `CriticAgent` to break out of the loop immediately once the quality criteria are met. → Lab 08 — ADK Fundamentals & Lab 12 — Multi-Agent and A2A.
+- **Why B is incorrect**: `ParallelAgent` executes sub-agents concurrently in a single pass, not iteratively in a generator-critic feedback cycle.
+- **Why C is incorrect**: `ModelArmorConfig` screens for prompt injection/safety violations, not iterative convergence.
+- **Why D is incorrect**: Prompt-based counting is probabilistic and cannot guarantee protection against runaway reasoning loops.
+</details>
+
+---
+
+### Question 69
+**Scenario**: Your medical-device company must deploy an on-premise/edge-compatible open-weight model on a GKE cluster with a tight GPU budget (single NVIDIA L4 24 GB GPU per node). You need a model from the Gemma 4 family with a 262,144-token context window that maximizes tokens-per-second throughput and minimizes active-parameter memory bandwidth per generated token.
+
+**Which verified model ID from the Gemini/Gemma catalog should you select?**
+- **A)** `gemma-4-26b-a4b-it`
+- **B)** `gemma-4-31b-it`
+- **C)** `gemini-2.5-pro`
+- **D)** `gemini-embedding-2`
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: `gemma-4-26b-a4b-it` is the open-weights Mixture-of-Experts (MoE) variant in the Gemma 4 family (26B total parameters, ~4B active parameters per token, 262K input / 32K output context). Because only ~4B parameters are activated per forward pass, it delivers substantially higher tokens/sec and lower compute latency on constrained GPUs like NVIDIA L4 compared to the dense 31B model (`gemma-4-31b-it`). → Lab 07 — Model Selection & Lab 19 — GKE Inference Gateway and GPUs.
+- **Why B is incorrect**: `gemma-4-31b-it` is a dense 31B model that activates all 31B parameters on every token, requiring more GPU memory bandwidth and higher latency than the `a4b` MoE variant.
+- **Why C is incorrect**: `gemini-2.5-pro` is a proprietary cloud SaaS model and cannot be self-hosted on edge/GKE GPU nodes.
+- **Why D is incorrect**: `gemini-embedding-2` generates vector embeddings (8,192 input limit) and cannot generate text responses.
+</details>
+
+---
+
+### Question 70
+**Scenario**: When two remote agents communicate across organizational departments using the **Agent2Agent (A2A)** protocol, the calling orchestrator must first inspect what capabilities, input/output MIME types (`application/json`, `text/plain`), and authentication schemes (`OAuth2`, `OIDC`) the remote specialist agent supports before creating an A2A Task. Furthermore, the orchestrator must attach a signed OAuth 2.0 trace/auth header to every outgoing A2A request.
+
+**Which A2A artifacts and ADK classes handle capability advertisement and header injection?**
+- **A)** The remote agent publishes an **Agent Card** (`/.well-known/agent.json`), and the calling ADK agent configures `A2aRemoteAgentConfig` with `request_interceptors` (`RequestInterceptor`) and `card_request_interceptors` (`CardRequestInterceptor`).
+- **B)** The remote agent publishes a `SKILL.md` frontmatter file over FTP, and the caller uses `BigQueryToolset`.
+- **C)** Both agents share a local SQLite database file using `sqlite_span_exporter`.
+- **D)** The caller uses `VertexAiRagMemoryService` to guess the remote agent's URL from vector embeddings.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: In the **A2A** specification and `google.adk.a2a.agent`, remote agents advertise their skills, supported modalities, endpoint URL, and required auth schemes via an **Agent Card**. On the client side, `A2aRemoteAgentConfig` exposes `request_interceptors` and `card_request_interceptors` (`RequestInterceptor` / `CardRequestInterceptor`) to inject OAuth 2.0 bearer tokens and distributed trace headers into A2A handshakes. → Lab 12 — Multi-Agent and A2A.
+- **Why B is incorrect**: `SKILL.md` is used for local/GCS `SkillRegistry` instructions, not A2A network protocol negotiation.
+- **Why C is incorrect**: `sqlite_span_exporter` is a local OpenTelemetry trace exporter, not an inter-agent protocol.
+- **Why D is incorrect**: RAG memory stores semantic facts, not cryptographic A2A capability contracts.
+</details>
+
+---
+
+### Question 71
+**Scenario**: A healthcare agent passes all `final_response_match_v2` tests on a golden dataset of 200 patient scheduling scenarios. However, in staging, an audit reveals two critical defects:
+1. For 15% of prompts, the agent skips calling the mandatory `verify_insurance_eligibility` tool and still fabricates a polite confirmation message that matches the expected text pattern.
+2. For 5% of prompts, the agent invents a copay dollar amount that does not appear anywhere in the tool output returned by the EHR system.
+
+**Which two evaluation modules from `google.adk.evaluation` should you add to your continuous `adk eval` pipeline to catch both defects deterministically?**
+- **A)** `trajectory_evaluator` (to enforce `in_order_match` / `exact_match` on tool invocations) and `hallucinations_v1` (to verify that every claim in the final response is grounded in retrieved tool context)
+- **B)** `final_response_match_v1` and `SimplePromptOptimizer`
+- **C)** `GkeCodeExecutor` and `RedisSessionService`
+- **D)** `TransferToAgentTool` and `preload_memory`
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: Final-response similarity (`final_response_match_v2`) only checks *what* the agent said, not *how* it got there or whether the facts came from tool outputs. Adding `trajectory_evaluator` verifies the exact tool-call trajectory (catching the skipped `verify_insurance_eligibility` call), while `hallucinations_v1` scores groundedness against the actual tool/RAG context (catching the fabricated copay amount). → Lab 13 — Agent Evaluation.
+- **Why B is incorrect**: `final_response_match_v1` is an older surface-level response comparator that still ignores tool trajectories and ungrounded claims.
+- **Why C is incorrect**: These are execution and session components, not evaluation metrics.
+- **Why D is incorrect**: These are agent routing and memory tools, not evaluation modules.
+</details>
+
+---
+
+### Question 72
+**Scenario**: You want to run regression tests on your multi-agent ADK workflow on every Git pull request in Cloud Build. However, calling live Gemini models on 500 multi-turn test cases on every commit is too slow, non-deterministic, and expensive. You want to record a known-good interaction trace (including LLM tool-call decisions and tool outputs) in staging and replay it deterministically during CI checks to verify that code refactors have not broken agent state transitions or schema contracts.
+
+**Which verified `adk` CLI command pair supports this workflow?**
+- **A)** `adk conformance record` and `adk conformance test`
+- **B)** `adk optimize` and `adk migrate session`
+- **C)** `adk create` and `adk web`
+- **D)** `adk deploy docker` and `adk telemetry disable`
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: The `adk conformance` command group (`adk conformance record` and `adk conformance test`) captures deterministic execution recordings and replays them in CI/CD pipelines to detect regressions in agent graph wiring, state schemas, and tool contracts without paying for or waiting on live LLM inference. → Lab 15 — Observability and Troubleshooting.
+- **Why B is incorrect**: `adk optimize` runs the GEPA prompt optimizer, and `adk migrate session` migrates session storage schemas.
+- **Why C is incorrect**: `adk create` scaffolds a project template, and `adk web` launches the interactive local UI.
+- **Why D is incorrect**: `adk deploy docker` builds a container image, and `adk telemetry disable` turns off OpenTelemetry export.
+</details>
+
+---
+
+### Question 73
+**Scenario**: A multi-agent customer support system on Google Cloud is experiencing p99 latency spikes of 14 seconds. On a single user turn, the root `LlmAgent` invokes three independent MCP tools in parallel and delegates a sub-task to a remote A2A agent. At the same time, your compliance officer mandates that **Cloud Trace** spans must record tool execution latency, token counts, and parallel tool-merge timings, but **must never capture raw customer PII or prompt text** inside trace attributes in production.
+
+**How should you configure `google.adk.telemetry` to meet both the latency-attribution and privacy requirements?**
+- **A)** Enable OpenTelemetry export to Cloud Trace (`trace_call_llm`, `trace_tool_call`, `trace_merged_tool_calls`) and configure `TelemetryConfig` with `ContentCapturingMode` set to disable/redact prompt and response content capture in production while preserving span durations, status codes, and token usage metrics.
+- **B)** Run `adk telemetry disable` in production so no spans are sent to Cloud Trace, and rely on billing invoices to debug latency.
+- **C)** Set `ContentCapturingMode` to capture full raw payloads and grant `roles/cloudtrace.user` to all employees.
+- **D)** Disable parallel tool execution so every tool runs sequentially without `trace_merged_tool_calls`.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: `google.adk.telemetry` instruments LLM calls (`trace_call_llm`), individual tool executions (`trace_tool_call`), and concurrent tool fan-out/fan-in (`trace_merged_tool_calls`), exporting waterfall spans and token counters (`_token_usage`) to Cloud Trace. Setting `ContentCapturingMode` in `TelemetryConfig` to redact/omit payload contents ensures zero PII is written to trace storage while keeping full latency and token observability. → Lab 15 — Observability and Troubleshooting.
+- **Why B is incorrect**: Disabling telemetry removes the ability to attribute latency between `trace_call_llm` and `trace_tool_call`.
+- **Why C is incorrect**: Capturing full raw prompts containing PII in Cloud Trace violates the compliance mandate.
+- **Why D is incorrect**: Forcing sequential tool execution degrades p99 latency even further.
+</details>
+
+---
+
+### Question 74
+**Scenario**: A junior IAM administrator accidentally grants `roles/bigquery.admin` and `roles/storage.admin` at the **Google Cloud Organization root** to the workload identity (`Agent Identity`) of an experimental marketing agent. Fortunately, the security architect had previously bound a **Principal Access Boundary (PAB)** policy to that Agent Identity whose `eligible_resources` rule only lists `//cloudresourcemanager.googleapis.com/projects/marketing-sandbox-dev`.
+
+During a prompt-injection attack, the marketing agent attempts to query `projects/corp-payroll-prod.hr_dataset.salaries`.
+
+**What is the outcome of the query, and why?**
+- **A)** The query fails with `403 PERMISSION_DENIED`. Effective access is the **intersection** of IAM Allow policies and the Principal Access Boundary (`Effective Access = IAM Allow ∩ PAB`). Because `projects/corp-payroll-prod` is outside the PAB's eligible resources ceiling, the Organization-level IAM grant is neutralized.
+- **B)** The query succeeds because an Organization-level IAM Allow policy (`roles/bigquery.admin`) overrides a Principal Access Boundary policy.
+- **C)** The query succeeds unless `ModelArmorPlugin` blocks the SQL syntax.
+- **D)** The query fails only if the agent runs on GKE, because PAB policies do not apply to Agent Runtime or Cloud Run.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: A **Principal Access Boundary (PAB)** policy defines the maximum set of resources a principal can *ever* access across Google Cloud (`Effective Access = IAM Allow ∩ PAB Eligible Resources`). A PAB never grants permissions on its own, and no IAM Allow role—even at the Organization root—can grant access to a resource excluded by the principal's PAB. → Lab 16 — Agent Identity and Auth & Lab 20 — E2E AI Threat Defense.
+- **Why B is incorrect**: IAM Allow policies never override a PAB ceiling; both must allow the target resource.
+- **Why C is incorrect**: IAM + PAB enforcement happens deterministically at the Google Cloud IAM control plane regardless of Model Armor.
+- **Why D is incorrect**: PAB is bound to the **Agent Identity** (principal) and applies universally across all Google Cloud runtimes (Agent Runtime, Cloud Run, GKE, GCE).
+</details>
+
+---
+
+### Question 75
+**Scenario**: You are designing an end-to-end **AI Threat Defense** architecture for a regulated banking multi-agent system. The architecture must simultaneously defend against four distinct threats:
+1. Unauthenticated or rate-abusive traffic hitting your A2A and MCP endpoints, plus loss of end-user OAuth 2.0 identity during downstream RAG queries.
+2. Developers or compromised agents attempting to invoke unvetted "shadow" MCP servers or rogue A2A agents.
+3. Indirect prompt injections hidden inside third-party emails fetched by an MCP tool, as well as fail-safe blocking if the content screening API experiences a transient outage.
+4. Lateral movement to non-sandbox GCP projects if an agent's identity is granted overly broad IAM roles.
+
+**Which combination of four Google Cloud security controls maps 1:1 to these four threat vectors?**
+- **A)** (1) **Agent Gateway** for ingress policy, rate limiting, and OAuth identity propagation; (2) **Agent Registry** (`AgentRegistry`) for attested A2A/MCP endpoint allowlisting; (3) **Model Armor** (`ModelArmorPlugin` with `block_on_screening_failure=True`) for pre-model/post-tool screening; and (4) **Agent Identity with a Principal Access Boundary (PAB)** for blast-radius containment.
+- **B)** (1) Cloud DNS; (2) `GCPSkillRegistry`; (3) `UnsafeLocalCodeExecutor`; and (4) `InMemorySessionService`.
+- **C)** (1) GKE Inference Gateway; (2) `FallbackModel`; (3) `ModelArmorConfig(block_on_screening_failure=False)`; and (4) `roles/owner`.
+- **D)** (1) System prompt rules ("do not get hacked"); (2) `temperature=0.0`; (3) `SequentialAgent`; and (4) `VertexAiMemoryBankService`.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: This is the complete 4-layer Google Cloud **AI Threat Defense** reference architecture:
+  1. **Agent Gateway** enforces authentication, quotas, audit logging, and user OAuth 2.0 identity propagation.
+  2. **Agent Registry** governs discovery of cryptographically attested A2A Agent Cards (`get_remote_a2a_agent`) and approved MCP servers (`get_mcp_toolset`).
+  3. **Model Armor** (`ModelArmorPlugin` with `block_on_screening_failure=True`) screens user prompts and tool outputs (`before_model_callback` / `after_tool_callback`) for indirect prompt injection and PII leaks while failing closed on outages.
+  4. **Agent Identity + Principal Access Boundary (PAB)** enforces an identity-centric blast-radius ceiling (`IAM Allow ∩ PAB`). → Lab 20 — E2E AI Threat Defense.
+- **Why B, C, and D are incorrect**: None of these provide the 4-layer security control plane; setting `block_on_screening_failure=False` fails open during an outage, and prompt engineering (`D`) cannot enforce network, catalog, or IAM boundaries.
+</details>
+
+---
+
 
 ## Scoring and Diagnosis
 
-Count your correct answers and use this table to plan your final review:
+Count your correct answers across all 75 questions (matching the 3-hour, 75-question live exam format) and use this table to plan your final review:
 
 | Score | Meaning | Recommended Action |
 | :---: | :--- | :--- |
-| **0–35** | **Foundational gaps.** | Do not take the exam yet. Re-run Tracks 3 and 4 end-to-end. |
-| **36–47** | **Close, but risky.** | You understand the concepts but miss the trade-offs. Review `docs/VERIFIED_FACTS.md`. |
-| **48–60** | **Ready to test.** | You have mastered the architectures and API surfaces. |
+| **0–44** | **Foundational gaps.** | Do not take the exam yet. Re-run Tracks 3, 4, and 5 end-to-end. |
+| **45–59** | **Close, but risky.** | You understand the concepts but miss the trade-offs. Review `STUDY_GUIDE.md` and `docs/VERIFIED_FACTS.md`. |
+| **60–75 (≥80%)** | **Ready to test.** | You have mastered the multi-agent architectures, runtime trade-offs, security boundaries, and ADK 2.9.0 API surfaces. |
 
 ### Domain Breakdown Tracker
 
@@ -1291,8 +1634,10 @@ Find your weakest domain to focus your study time efficiently:
 
 | Domain | Your Score | Target (80%) |
 | :--- | :---: | :---: |
-| 1. Low-Code Tools | ___ / 8 | 7 |
-| 2. Coding Agents | ___ / 10 | 8 |
-| 3. Custom Agents | ___ / 20 | 16 |
-| 4. Evaluating & Deploying | ___ / 13 | 11 |
-| 5. Securing & Governing | ___ / 9 | 8 |
+| 1. Low-Code Tools (~13%) | ___ / 9 | 8 |
+| 2. Coding Agents (~17%) | ___ / 12 | 10 |
+| 3. Custom Agents (~33%) | ___ / 25 | 20 |
+| 4. Evaluating & Deploying (~22%) | ___ / 17 | 14 |
+| 5. Securing & Governing (~15%) | ___ / 12 | 10 |
+| **Total** | **___ / 75** | **60** |
+

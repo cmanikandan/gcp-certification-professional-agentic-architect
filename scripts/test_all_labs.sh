@@ -13,7 +13,7 @@ python3 -m pytest tests/ -v
 
 echo ""
 echo "======================================================================"
-echo "  Lab tests — all 18 labs"
+echo "  Lab tests — all 20 labs"
 echo "======================================================================"
 python3 -m pytest tracks/ -v --durations=10
 

@@ -9,7 +9,7 @@
 > See [`DISCLAIMER.md`](DISCLAIMER.md) for the full disclaimer.
 
 A hands-on study repository for the **Google Cloud Certified — Professional Agentic Architect** beta
-exam. Eighteen independent labs, structured to mirror the five scored sections of the
+exam. Twenty independent labs, structured to mirror the five scored sections of the
 [official exam guide](https://services.google.com/fh/files/misc/professional_agentic_architect_exam_guide_english.pdf)
 exactly.
 
@@ -45,12 +45,15 @@ pie showData
 The exam guide uses newer product names than most public documentation. Answer with the exam's
 vocabulary.
 
-| Exam guide name | What public docs may still call it |
+| Exam guide name | What public docs or scenarios mean by it |
 | :--- | :--- |
-| **Agent Runtime** | Vertex AI Agent Engine |
-| **Agent Search** | Vertex AI Search |
-| **Agent Registry** | (new) discovery service for agents, MCP servers and endpoints |
-| **Agent Gateway** | (new) policy-enforcing ingress for agent traffic |
+| **Gemini Enterprise** (umbrella) vs. **Gemini Enterprise App (`GEApp`)** | **Gemini Enterprise** is now the umbrella brand for the entire enterprise agentic stack; **Gemini Enterprise App (`GEApp`)** is the turn-key employee search & assistant web app (formerly Google Agentspace), distinct from **Agent Platform (`GEAP`)** for custom code-first agents |
+| **Agent Runtime** | Vertex AI Agent Engine (`adk deploy agent_engine`) |
+| **Agent Search** | Vertex AI Search (`VertexAiSearchTool`) |
+| **Agent Registry** | Central discovery & governance service for A2A Agent Cards and MCP servers |
+| **Agent Gateway** | Policy-enforcing ingress/egress proxy for agentic A2A & MCP traffic |
+| **GKE Inference Gateway** | Kubernetes Gateway API extension (`InferencePool`, `InferenceModel`) for KV-cache & LoRA aware GPU routing |
+| **Code Mender** | Autonomous AI vulnerability-patching & root-cause repair agent (Objective 2.1) |
 
 ---
 
@@ -75,7 +78,7 @@ whichever section you are weakest in.
 
 ---
 
-## All eighteen labs
+## All twenty labs
 
 ### Track 1 — Building agents using low-code tools · 13%
 [`tracks/01_low_code_agents/`](tracks/01_low_code_agents/)
@@ -84,7 +87,7 @@ whichever section you are weakest in.
 | :--- | :--- | :--- |
 | [01](tracks/01_low_code_agents/lab_01_agent_designer_workflows/) | Agent Designer workflows — prompt patterns, zero/few-shot, chain-of-thought | 1.1 |
 | [02](tracks/01_low_code_agents/lab_02_cx_agent_studio_state/) | CX Agent Studio — pages, intents, transition routes, event handlers | 1.1 |
-| [03](tracks/01_low_code_agents/lab_03_enterprise_data_and_multimodal/) | Connecting enterprise data to Gemini Enterprise; multimodal input | 1.2 |
+| [03](tracks/01_low_code_agents/lab_03_enterprise_data_and_multimodal/) | Connecting enterprise data to Gemini Enterprise App (`GEApp`); multimodal input | 1.2 |
 
 ### Track 2 — Using coding agents for application development · 17%
 [`tracks/02_coding_agents/`](tracks/02_coding_agents/)
@@ -92,38 +95,40 @@ whichever section you are weakest in.
 | Lab | Topic | Objectives |
 | :--- | :--- | :--- |
 | [04](tracks/02_coding_agents/lab_04_mcp_and_tooling/) | MCP servers and toolsets — extending a coding agent's reach | 2.1 |
-| [05](tracks/02_coding_agents/lab_05_secure_sandboxes/) | Secure code execution — GKE job vs GKE sandbox vs Cloud Run vs E2B | 2.1, 2.2 |
-| [06](tracks/02_coding_agents/lab_06_antigravity_customization/) | Customising and governing coding agents — rules, skills, allowlists | 2.2 |
+| [05](tracks/02_coding_agents/lab_05_secure_sandboxes/) | Secure code execution — GKE Agent Sandbox (gVisor) vs Job vs Cloud Run, Code Mender | 2.1, 2.2 |
+| [06](tracks/02_coding_agents/lab_06_antigravity_customization/) | Customising and governing coding agents — rules, skills, allowlists, Code Mender | 2.1, 2.2 |
 
 ### Track 3 — Developing custom agents · 33% ⭐
 [`tracks/03_custom_agents/`](tracks/03_custom_agents/)
 
 | Lab | Topic | Objectives |
 | :--- | :--- | :--- |
-| [07](tracks/03_custom_agents/lab_07_model_selection/) | Choosing a model — Pro vs Flash vs Lite, open-weights, cost shape | 3.1 |
+| [07](tracks/03_custom_agents/lab_07_model_selection/) | Choosing a model — Pro vs Flash vs Lite, open-weights on GKE GPUs, cost shape | 3.1 |
 | [08](tracks/03_custom_agents/lab_08_adk_fundamentals/) | ADK fundamentals — `LlmAgent`, workflow agents, the graph `Workflow` | 3.1, 3.3 |
 | [09](tracks/03_custom_agents/lab_09_sessions_and_memory/) | Session state vs memory; Memory Bank vs RAG memory | 3.1, 3.2 |
 | [10](tracks/03_custom_agents/lab_10_tools_and_skills/) | Tools, long-running tools, human-in-the-loop, and the Skill Registry | 3.1, 3.2 |
 | [11](tracks/03_custom_agents/lab_11_rag_and_retrieval/) | Grounding — Agent Search, RAG Engine, vector stores, citations | 3.2 |
-| [12](tracks/03_custom_agents/lab_12_multi_agent_and_a2a/) | Multi-agent orchestration and the A2A protocol | 3.3 |
+| [12](tracks/03_custom_agents/lab_12_multi_agent_and_a2a/) | Multi-agent architecture patterns, MCP + A2A orchestration, Agent Registry | 3.2, 3.3 |
 
 ### Track 4 — Evaluating and deploying agentic workflows · 22%
 [`tracks/04_evaluate_and_deploy/`](tracks/04_evaluate_and_deploy/)
 
 | Lab | Topic | Objectives |
 | :--- | :--- | :--- |
-| [13](tracks/04_evaluate_and_deploy/lab_13_agent_evaluation/) | Evaluation — eval sets, trajectory vs response scoring, LLM-as-judge | 4.1 |
-| [14](tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes/) | Agent Runtime vs Cloud Run vs GKE vs GCE; `adk deploy` | 4.2 |
-| [15](tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting/) | Tracing, token accounting, alerting, conformance replay | 4.1, 4.2 |
+| [13](tracks/04_evaluate_and_deploy/lab_13_agent_evaluation/) | Evaluation — eval sets, trajectory vs response scoring, rubric & hallucination metrics | 4.1 |
+| [14](tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes/) | Agent Runtime limitations vs Cloud Run vs GKE vs GCE; `adk deploy` | 4.2 |
+| [15](tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting/) | Cloud Logging, Cloud Trace, OpenTelemetry spans, token accounting, conformance replay | 4.1, 4.2 |
+| [19](tracks/04_evaluate_and_deploy/lab_19_gke_inference_gateway_and_gpus/) | GKE Inference Gateway (`InferencePool`), open-weight GPU serving (`vLLM`), GKE Agent Sandbox | 3.1, 4.2 |
 
 ### Track 5 — Securing and governing agentic workflows · 15%
 [`tracks/05_secure_and_govern/`](tracks/05_secure_and_govern/)
 
 | Lab | Topic | Objectives |
 | :--- | :--- | :--- |
-| [16](tracks/05_secure_and_govern/lab_16_agent_identity_and_auth/) | Agent Identity, service accounts, identity propagation, least privilege | 5.1 |
+| [16](tracks/05_secure_and_govern/lab_16_agent_identity_and_auth/) | Agent Identity, Principal Access Boundary (PAB), OAuth 2.0, identity propagation | 5.1 |
 | [17](tracks/05_secure_and_govern/lab_17_model_armor_and_hitl/) | Model Armor, prompt-injection defence, fail-closed vs fail-open, HITL | 5.2 |
-| [18](tracks/05_secure_and_govern/lab_18_governance_gateway_registry/) | Agent Gateway, Agent Registry, audit and lifecycle governance | 5.1 |
+| [18](tracks/05_secure_and_govern/lab_18_governance_gateway_registry/) | Agent Gateway, Agent Registry, audit and lifecycle governance | 5.1, 5.2 |
+| [20](tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense/) | End-to-End AI Threat Defense — Agent Gateway, Agent Registry, Model Armor & PAB | 5.1, 5.2 |
 
 ---
 

@@ -184,8 +184,9 @@ Covered by [Lab 13](../tracks/04_evaluate_and_deploy/lab_13_agent_evaluation).
 > - Monitoring and optimizing agents for performance, reliability, and cost (e.g.,
 >   identify logic errors, latency bottlenecks, and hallucinations)
 
-Covered by [Lab 14](../tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes)
-and [Lab 15](../tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting).
+Covered by [Lab 14](../tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes),
+[Lab 15](../tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting),
+and [Lab 19](../tracks/04_evaluate_and_deploy/lab_19_gke_inference_gateway_and_gpus).
 
 ---
 
@@ -200,8 +201,9 @@ and [Lab 15](../tracks/04_evaluate_and_deploy/lab_15_observability_and_troublesh
 > - Designing and configuring agentic governance and policy enforcement (e.g.,
 >   Agent Registry and Model Armor)
 
-Covered by [Lab 16](../tracks/05_secure_and_govern/lab_16_agent_identity_and_auth)
-and [Lab 18](../tracks/05_secure_and_govern/lab_18_governance_gateway_registry).
+Covered by [Lab 16](../tracks/05_secure_and_govern/lab_16_agent_identity_and_auth),
+[Lab 18](../tracks/05_secure_and_govern/lab_18_governance_gateway_registry),
+and [Lab 20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense).
 
 ### 5.2 Implementing secure agent behavior and execution
 
@@ -210,23 +212,22 @@ and [Lab 18](../tracks/05_secure_and_govern/lab_18_governance_gateway_registry).
 > - Configuring secure access to data and identity propagation (e.g., Agent Gateway
 >   and Agent Registry)
 
-Covered by [Lab 17](../tracks/05_secure_and_govern/lab_17_model_armor_and_hitl)
-and [Lab 18](../tracks/05_secure_and_govern/lab_18_governance_gateway_registry).
+Covered by [Lab 17](../tracks/05_secure_and_govern/lab_17_model_armor_and_hitl),
+[Lab 18](../tracks/05_secure_and_govern/lab_18_governance_gateway_registry),
+and [Lab 20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense).
 
 ---
 
 ## Tools in scope — and the code behind each name
 
-The guide lists 26 tools. Product names changed in this rebrand, so the left
-column is exam vocabulary and the right column is what you actually import or run.
-Verification status for every row is in [`VERIFIED_FACTS.md`](VERIFIED_FACTS.md).
+The guide lists 26 tools, plus architectural capabilities implied by the sub-objectives (such as **Code Mender** for Objective 2.1 vulnerability patching and **GKE Inference Gateway** for Objective 4.2 GKE serving). Product names changed in this rebrand, so the left column is exam vocabulary and the right column is what you actually import or run. Verification status for every row is in [`VERIFIED_FACTS.md`](VERIFIED_FACTS.md).
 
 | Exam name | What it actually is |
 | :--- | :--- |
 | Agent Development Kit (ADK) | `pip install google-adk` (2.9.0) |
 | Agent evaluation | `google.adk.evaluation.AgentEvaluator`, `adk eval` |
-| **Agent Gateway** | ⚠️ not publicly verifiable yet — see Lab 18 |
-| Agent Identity | `google.adk.integrations.agent_identity` |
+| **Agent Gateway** | Policy-enforcing ingress/egress proxy for MCP & A2A traffic — see Labs 18 & 20 |
+| Agent Identity | `google.adk.integrations.agent_identity` + Principal Access Boundary (PAB) |
 | Agent Registry | `google.adk.integrations.agent_registry.AgentRegistry` |
 | Agent Retrieval and Vector Search 1.0 | Vector Search + `VertexAiRagMemoryService` |
 | Agent Runtime *(formerly Agent Engine)* | `adk deploy agent_engine` |
@@ -234,22 +235,23 @@ Verification status for every row is in [`VERIFIED_FACTS.md`](VERIFIED_FACTS.md)
 | Agentic protocols (A2A, MCP) | `google.adk.a2a`, `google.adk.tools.MCPToolset` |
 | Agents CLI in Agent Platform | ⚠️ see Lab 06 — `adk` CLI is the verified stand-in |
 | Antigravity (CLI, SDK, App) | coding-agent platform — Track 2 |
+| **Code Mender** | Autonomous AI vulnerability-patching & root-cause repair agent (Objective 2.1) — Labs 05 & 06 |
 | Auth Manager (OAuth 2.0) | `google.adk.auth` (`OAuth2Auth`, exchanger, refresher) |
 | BigQuery | `google.adk.tools.bigquery.BigQueryToolset` |
 | Cloud Run | `adk deploy cloud_run`, `CloudRunSandboxCodeExecutor` |
 | Cloud SQL | `DatabaseSessionService` backend |
 | Cloud Storage | `GcsArtifactService`, `integrations.gcs.GCSToolset` |
 | Firestore | `google.adk.integrations.firestore` |
-| Gemini Enterprise | console product — Track 1 |
+| **Gemini Enterprise / Gemini Enterprise App (`GEApp`)** | **Gemini Enterprise** is the umbrella brand; **Gemini Enterprise App (`GEApp`)** is the enterprise search/assistant app (distinct from **Agent Platform / `GEAP`**) — Track 1 |
 | Gemini LLMs | see the verified model catalog in `common/models.py` |
-| Google Cloud Observability | `google.adk.telemetry`, `adk telemetry` |
-| GKE | `adk deploy gke`, `GkeCodeExecutor` |
+| Google Cloud Observability | `google.adk.telemetry`, `adk telemetry` (Cloud Logging & Cloud Trace) |
+| GKE (Agent Sandbox & Inference Gateway) | `adk deploy gke`, `GkeCodeExecutor`, `InferencePool` / `InferenceModel` — Labs 05, 14, 19 |
 | Memorystore for Redis | `google.adk.integrations.redis.RedisSessionService` |
 | Model Armor | `google.adk.integrations.model_armor.ModelArmorPlugin` |
 | MCP servers | `MCPToolset`, `RemoteMcpServer`, `mcp` 2.2.0 |
-| Model Garden | `google.adk.models.Gemma`, `LiteLlm`, `Gemma3Ollama` |
+| Model Garden (Open-Weight GPUs) | `google.adk.models.Gemma`, `LiteLlm`, `Gemma3Ollama`, GKE vLLM — Labs 07 & 19 |
 | RAG Engine | `VertexAiRagMemoryService` — Lab 11 |
-| Sensitive Data Protection | `google-cloud-dlp` — Lab 17 |
+| Sensitive Data Protection | `google-cloud-dlp` + Model Armor SDP templates — Labs 17 & 20 |
 | Skill Registry | `google.adk.skills.SkillRegistry`, `GCPSkillRegistry` |
 
 ---
@@ -261,13 +263,17 @@ separate. Each links to the lab that drills it.
 
 | Distinction | Why it is tested | Lab |
 | :--- | :--- | :--- |
+| **Gemini Enterprise** vs. **Gemini Enterprise App (`GEApp`)** vs. **Agent Platform (`GEAP`)** | **Gemini Enterprise** is the umbrella brand; **Gemini Enterprise App (`GEApp`)** is the turn-key web app (often simply called "Gemini Enterprise" in scenarios); **GEAP** is the developer platform | [03](../tracks/01_low_code_agents/lab_03_enterprise_data_and_multimodal) |
 | Low-code state machine vs. code-first agent | Deterministic, auditable business process vs. open-ended reasoning | [02](../tracks/01_low_code_agents/lab_02_cx_agent_studio_state) |
-| MCP vs. A2A | Agent-to-**tool** vs. agent-to-**agent** | [12](../tracks/03_custom_agents/lab_12_multi_agent_and_a2a) |
+| **Code Mender** vs. general coding assistant | Automated CVE root-cause analysis, fuzzing, and sandboxed patch verification vs. interactive code generation | [05](../tracks/02_coding_agents/lab_05_secure_sandboxes) |
+| **GKE `sandbox` mode (gVisor) vs. `job` mode** | Kernel syscall interception (`runsc`) for untrusted LLM code vs. standard container sharing host kernel | [05](../tracks/02_coding_agents/lab_05_secure_sandboxes) |
+| MCP vs. A2A | Agent-to-**tool** (`MCPToolset`) vs. agent-to-**agent** (`A2aRemoteAgentConfig` + Agent Card) | [12](../tracks/03_custom_agents/lab_12_multi_agent_and_a2a) |
 | Session state vs. memory | Within one conversation vs. across conversations | [09](../tracks/03_custom_agents/lab_09_sessions_and_memory) |
-| Workflow agents vs. LLM transfer | Deterministic order vs. model-decided routing | [12](../tracks/03_custom_agents/lab_12_multi_agent_and_a2a) |
-| Agent Runtime vs. Cloud Run vs. GKE | Managed convenience vs. container control vs. cluster control | [14](../tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes) |
-| Tool-trajectory vs. final-response scoring | Did it work *correctly* vs. did it *answer* | [13](../tracks/04_evaluate_and_deploy/lab_13_agent_evaluation) |
-| PAB vs. IAM roles | Hard blast-radius cap vs. granted permissions | [16](../tracks/05_secure_and_govern/lab_16_agent_identity_and_auth) |
-| LLM vs. SLM, SaaS vs. self-hosted | Capability vs. cost vs. data residency | [07](../tracks/03_custom_agents/lab_07_model_selection) |
+| Workflow agents (`SequentialAgent`) vs. Graph `Workflow` vs. LLM transfer | Sub-agent nesting compatibility vs. deterministic edge graph vs. dynamic model routing | [08](../tracks/03_custom_agents/lab_08_adk_fundamentals), [12](../tracks/03_custom_agents/lab_12_multi_agent_and_a2a) |
+| **Agent Runtime limitations vs. GKE** | Agent Runtime is zero-ops managed Python/ADK, but lacks custom GPU node pools, open-weight vLLM hosting, gVisor `GkeCodeExecutor`, and GKE Inference Gateway | [14](../tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes), [19](../tracks/04_evaluate_and_deploy/lab_19_gke_inference_gateway_and_gpus) |
+| **GKE Inference Gateway vs. Agent Gateway vs. L7 LB** | KV-cache / prefix-cache & LoRA GPU routing (`InferencePool`) vs. agent authz/MCP/A2A policy governance vs. naive round-robin HTTP | [19](../tracks/04_evaluate_and_deploy/lab_19_gke_inference_gateway_and_gpus), [20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense) |
+| Tool-trajectory vs. final-response scoring | Did it invoke the right tools in order (`trajectory_evaluator`) vs. did it produce a matching text (`final_response_match_v2`) | [13](../tracks/04_evaluate_and_deploy/lab_13_agent_evaluation) |
+| PAB (`PrincipalAccessBoundary`) vs. IAM allow roles | Hard blast-radius ceiling (`IAM Allow ∩ PAB`) vs. additive permission grants | [16](../tracks/05_secure_and_govern/lab_16_agent_identity_and_auth), [20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense) |
+| LLM vs. SLM, SaaS vs. self-hosted on GKE GPUs | Capability vs. cost/latency vs. strict VPC-SC / air-gapped data residency (`gemma-4-26b-a4b-it`) | [07](../tracks/03_custom_agents/lab_07_model_selection), [19](../tracks/04_evaluate_and_deploy/lab_19_gke_inference_gateway_and_gpus) |
 | Native multimodal vs. preprocessing pipeline | Cross-modal reasoning vs. deterministic extraction | [03](../tracks/01_low_code_agents/lab_03_enterprise_data_and_multimodal) |
-| Fail-closed vs. fail-open guardrails | `block_on_screening_failure` | [17](../tracks/05_secure_and_govern/lab_17_model_armor_and_hitl) |
+| Fail-closed vs. fail-open guardrails | `block_on_screening_failure=True` vs `False` in `ModelArmorConfig` | [17](../tracks/05_secure_and_govern/lab_17_model_armor_and_hitl), [20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense) |

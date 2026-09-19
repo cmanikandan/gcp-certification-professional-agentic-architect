@@ -580,10 +580,12 @@ This is the highest-value table in the repo: it turns exam vocabulary into runna
 | Cloud Logging / Cloud Trace | `google.adk.telemetry` (+ `google_cloud` exporter); `adk telemetry` | ✅ verified |
 | Model Garden (OSS/SLM) | `google.adk.models.Gemma`, `LiteLlm`, `Gemma3Ollama`, `FallbackModel` | ✅ verified |
 | HITL | `google.adk.tools.request_input`, `get_user_choice`, `LongRunningFunctionTool` | ✅ verified |
-| **Agent Gateway** | no ADK module found | ❓ **UNVERIFIED** |
+| **Agent Gateway** | policy-enforcing ingress/egress proxy for agentic MCP & A2A traffic (no local ADK class; enforced at gateway layer) | 🟡 architectural / gateway plane |
 | **Agents CLI in Agent Platform** | distinct from `adk` CLI? not confirmed | ❓ **UNVERIFIED** |
-| **Gemini Enterprise / Agent Designer / CX Agent Studio** | console products, no SDK surface in ADK | 🟡 console-only |
-| **Sensitive Data Protection** | no ADK integration module | 🟡 use `google-cloud-dlp` |
+| **Gemini Enterprise vs. Gemini Enterprise App (`GEApp`) vs. Agent Platform (`GEAP`)** | **Gemini Enterprise** is the overarching umbrella brand. **Gemini Enterprise App (`GEApp`)** is the turn-key enterprise search & assistant web application (console product), whereas **Agent Platform (`GEAP`)** is the developer platform (`adk`, Agent Runtime, Agent Registry, Memory Bank). | ✅ architectural taxonomy |
+| **Code Mender** | Autonomous AI security & vulnerability-patching coding agent (maps to Objective 2.1 *"patch application-layer vulnerabilities"* using static/dynamic analysis, fuzzing, and sandboxed verification). | ✅ architectural tool (Section 2.1) |
+| **GKE Inference Gateway** | Kubernetes Gateway API extension (`InferencePool`, `InferenceModel`) for KV-cache & prefix-cache aware routing, LoRA multiplexing, and criticality load-shedding on GKE GPU pools. | ✅ GKE AI infrastructure |
+| **Sensitive Data Protection** | no ADK integration module | 🟡 use `google-cloud-dlp` (or via Model Armor SDP templates) |
 
 ---
 

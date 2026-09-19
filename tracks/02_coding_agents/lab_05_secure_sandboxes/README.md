@@ -36,13 +36,21 @@ graph TD
 
 The Google Agent Development Kit (ADK) standardizes code execution through the `BaseCodeExecutor` interface (and `BaseEnvironment` for third parties). By injecting different executors into your agent, you change where and how securely the code runs.
 
+### Code Mender & Automated Vulnerability Remediation (Objective 2.1)
+Objective 2.1 explicitly includes *"Using coding agents to refactor source code, optimize execution runtimes, and patch application-layer vulnerabilities"*.
+- **Code Mender** is Google's autonomous AI security and vulnerability-patching coding agent:
+  1. **Vulnerability Localization:** Ingests CVE reports, sanitizer stack traces (ASan/UBSan), or static analysis findings and traces root causes across large codebases using AST and call-graph tools.
+  2. **Patch Synthesis:** Generates minimal, targeted security patches to fix memory safety, injection, or logic vulnerabilities.
+  3. **Sandboxed Verification:** Executes the candidate patch, unit test suite, and automated fuzzers inside an isolated **GKE Agent Sandbox (`executor_type="sandbox"`, gVisor `runsc`)** to verify that the exploit crashes are eliminated without introducing regressions before proposing a pull request.
+
 ## 4. The decision that matters
 
-When to use which ADK Code Executor:
+When to use which ADK Code Executor or Coding Agent Pattern:
 
 | If you need... | Use | Why not the alternative |
 | :--- | :--- | :--- |
-| **High isolation, strict egress control**, custom namespaces | `GkeCodeExecutor` (sandbox mode) | `job` mode lacks the strict gVisor isolation of `sandbox` mode. GKE gives you network-level egress control, unlike basic containers. |
+| **High isolation, strict egress control**, custom namespaces, gVisor kernel syscall interception | `GkeCodeExecutor` (`executor_type="sandbox"`, `sandbox_gateway_name`, `sandbox_template`) | `job` mode runs a standard Kubernetes Job sharing the host Linux kernel and lacks sub-second warm sandbox claiming via the GKE Sandbox gateway. |
+| **Autonomous root-cause analysis, fuzzing, and verified patching of application CVEs** | **Code Mender + GKE Agent Sandbox** | Standard IDE autocomplete lacks autonomous fuzz-loop verification and sandboxed exploit reproduction. |
 | **Fast serverless sandboxing** from within a Cloud Run container | `CloudRunSandboxCodeExecutor` | This runs the `sandbox` CLI *from inside* a Cloud Run service where sandboxes are enabled. It **cannot** be used remotely from outside. |
 | **Agent runtime integration** | `AgentEngineSandboxCodeExecutor` | Ideal when already deploying to the Agent Runtime environment. |
 | **Managed remote cloud sandboxes** | `E2BEnvironment` or `DaytonaEnvironment` | These are third-party services. They lack native Google Cloud VPC integration but offer out-of-the-box infrastructure management. |

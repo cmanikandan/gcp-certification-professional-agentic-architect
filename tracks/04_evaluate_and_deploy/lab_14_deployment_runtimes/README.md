@@ -63,10 +63,17 @@ When deploying to Google Cloud, the exact flags you pass determine the environme
 
 | If you need... | Use | Why not the alternative |
 | :--- | :--- | :--- |
-| Zero-ops, managed Vertex AI integration, out-of-the-box memory | Agent Runtime | Limited customizability, restricted networking options compared to GKE. |
-| Scale-to-zero, low cost, event-driven HTTP (Eventarc) | Cloud Run | Does not easily support custom GPUs or stateful workloads without complex volume setups. |
-| Custom GPUs (for self-hosted SLMs), strict VPC controls, high concurrency | GKE | High operational overhead; requires managing node pools, namespaces, and ingress. |
-| Legacy OS requirements, extreme kernel tuning | Compute Engine | You have to manage the OS, patching, and scaling yourself. Use GKE instead if possible. |
+| Zero-ops, managed Vertex AI integration, out-of-the-box memory | **Agent Runtime (`adk deploy agent_engine`)** | Limited customizability, no custom GPU node pools, restricted networking/sandbox options compared to GKE. |
+| Scale-to-zero, low cost, event-driven HTTP (Eventarc) | **Cloud Run (`adk deploy cloud_run`)** | Does not support multi-node GPU InferencePools or stateful KV-cache routing across pods. |
+| Self-hosted open-weight GPUs (`Gemma 4`), **GKE Inference Gateway** (`InferencePool`), or **GKE Agent Sandbox** (`gVisor`) | **GKE (`adk deploy gke`)** | Agent Runtime cannot attach custom GPU node pools, cannot deploy `InferencePool` KV-cache routers, and cannot run custom `GkeCodeExecutor(executor_type="sandbox")` pods. |
+| Legacy OS requirements, extreme kernel tuning | **Compute Engine** | You have to manage the OS, patching, and scaling yourself. Use GKE instead if possible. |
+
+### Hard Limitations of Agent Runtime (When You MUST Choose GKE Instead)
+
+Exam scenarios frequently test whether you know where **Agent Runtime** stops working:
+1. **No Self-Hosted Open-Weight GPU Node Pools:** You cannot run vLLM/TGI on NVIDIA L4/A100/H100 GPUs inside Agent Runtime. If an architecture requires hosting `gemma-4-31b-it` or `gemma-4-26b-a4b-it` on dedicated GPUs, choose **GKE**.
+2. **No GKE Inference Gateway (`InferencePool` / `InferenceModel`):** KV-cache aware routing, prefix-cache affinity, dynamic LoRA adapter multiplexing, and criticality-based load shedding require **GKE Inference Gateway**.
+3. **No Custom GKE Agent Sandbox (`gVisor` Pod Templates) or Sidecar DaemonSets:** If the agent requires custom Kubernetes NetworkPolicies, Istio/Anthos service mesh sidecars, or `GkeCodeExecutor(executor_type="sandbox", sandbox_gateway_name=...)`, choose **GKE**.
 
 > [!WARNING]
 > **Naming Trap!** The exam guide refers to **"Agent Runtime"**. However, the actual ADK CLI command remains **`adk deploy agent_engine`**. If you see "Agent Runtime" on the exam, know that it corresponds to the `agent_engine` subcommand and the Vertex AI Reasoning Engine API.

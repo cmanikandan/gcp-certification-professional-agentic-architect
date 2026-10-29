@@ -1,4 +1,4 @@
-"""Tests for Lab 19 — GKE Inference Gateway, Open-Weight GPUs & Agent Sandbox."""
+"""Tests for Lab 19 — Regulated GKE Inference Gateway, Open-Weight SLMs & Sandbox."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def test_gke_sandbox_vs_job_executor_isolation() -> None:
     assert job_exec.stateful is False
 
 
-def test_runtime_decision_chooses_gke_when_agent_runtime_has_limitations() -> None:
+def test_runtime_decision_chooses_gke_for_airgapped_slms_and_agent_runtime_by_default() -> None:
     target, rationale = lab.evaluate_runtime_choice(
         requires_open_weight_gpus=True,
         requires_gvisor_agent_sandbox=False,
@@ -39,10 +39,45 @@ def test_runtime_decision_chooses_gke_when_agent_runtime_has_limitations() -> No
     assert target == "gke"
     assert "Agent Runtime" in rationale
 
+    target_airgap, _ = lab.evaluate_runtime_choice(
+        strict_airgapped_no_saas_residency=True,
+    )
+    assert target_airgap == "gke"
+
     target_igw, _ = lab.evaluate_runtime_choice(
         requires_inference_gateway_kv_routing=True,
     )
     assert target_igw == "gke"
+
+    target_default, _ = lab.evaluate_runtime_choice()
+    assert target_default == "agent_engine"
+
+
+def test_airgapped_hipaa_fallback_excludes_saas_and_workload_identity_iam() -> None:
+    _, hybrid_chain = lab.build_hybrid_gke_agent()
+    airgap_chain = lab.build_airgapped_hipaa_fallback_chain()
+
+    assert len(hybrid_chain.models) == 3
+    assert DEFAULT_AGENT_MODEL in hybrid_chain.models
+
+    assert len(airgap_chain.models) == 2
+    assert DEFAULT_AGENT_MODEL not in airgap_chain.models
+
+    ok, issues = lab.audit_gke_workload_identity_iam(
+        ksa_annotation_gsa="vllm-loader@hipaa-gke.iam.gserviceaccount.com",
+        granted_bucket_roles={"roles/storage.objectViewer"},
+        uses_node_default_compute_sa=False,
+    )
+    assert ok is True
+    assert issues == []
+
+    bad_ok, bad_issues = lab.audit_gke_workload_identity_iam(
+        ksa_annotation_gsa="112233-compute@developer.gserviceaccount.com",
+        granted_bucket_roles={"roles/storage.admin"},
+        uses_node_default_compute_sa=True,
+    )
+    assert bad_ok is False
+    assert len(bad_issues) >= 3
 
 
 def test_inference_gateway_prefers_prefix_cache_and_sheds_batch_under_load() -> None:

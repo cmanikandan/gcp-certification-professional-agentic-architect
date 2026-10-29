@@ -1,8 +1,8 @@
-# Lab 09 — Sessions and Memory
+# Lab 09 — Managed Runtime Sessions & Memory Service Patterns
 
 **Exam section:** 3. Developing custom agents (~33% of the exam)
-**Objectives covered:** 3.1
-**Time:** ~15 minutes · **Cost:** Free offline
+**Objectives covered:** 3.1 Designing and building agentic workflows in code
+**Time:** ~20 minutes · **Cost:** Free offline / Free live
 
 ---
 
@@ -12,76 +12,94 @@
 
 > Quoted verbatim from the official exam guide:
 > - "Configuring sessions and memory (e.g., Agent Platform Memory Bank and managed sessions)"
+> - "Building custom agents using open-source libraries (e.g., ADK)"
 
 ## 2. Explain it simply
 
-Agents are stateless by default. If you ask an agent your name in turn 1, it won't remember it in turn 2 unless you store it.
+Stateless LLM calls forget everything between turns. Enterprise agent architectures separate persistence into **two distinct planes** with completely different lifecycles, data shapes, and GCP backends:
 
-The exam heavily tests the architectural distinction between two types of persistence:
-1. **Session State (Short-term context):** The exact transcript and structured state for *one ongoing conversation*. It lives while the user is actively chatting, usually bound by a `state_schema`, and is retrieved quickly on every turn.
-2. **Memory (Long-term facts):** Extracted knowledge stored across sessions. If you tell an agent you have a dog, it stores that fact in memory so it remembers next month, even in a brand new session.
+1. **Managed Sessions (`BaseSessionService` — Short-Term Conversational State):** Stores the ordered turn-by-turn `Event` log and typed `Session.state` (`state_schema`) for **one active conversation** (`session_id`). Think *"what items are in the customer's cart right now?"*
+2. **Memory Bank (`BaseMemoryService` — Long-Term Cross-Session Knowledge):** Consolidates durable user facts and preferences extracted across completed sessions, keyed by `(app_name, user_id)`. Think *"this customer prefers seating in aisle rows and has platinum status next month in a brand-new chat."*
+
+When you deploy an ADK agent to **Agent Runtime** (`adk deploy agent_engine`), pairing **`VertexAiSessionService(project=..., location=..., agent_engine_id=...)`** with **`VertexAiMemoryBankService(project=..., location=..., agent_engine_id=...)`** delivers a **100% zero-ops managed stateful runtime**—no Redis clusters or SQL schemas to provision.
 
 ## 3. How it works
 
 ```mermaid
-graph TD
-    User((User)) --> Runner[Agent Runner]
-    Runner --> Session[Session State]
-    Runner --> Agent[LlmAgent]
-    Agent -- "load_memory / preload_memory" --> Memory[Memory Service]
+flowchart TB
+    User["Authenticated End User (user_id)"] --> Runtime["Runner on Agent Runtime / Cloud Run / GKE"]
 
-    subgraph "Short-term (per-conversation)"
-        Session
+    subgraph ShortTerm["Short-Term Session Plane (Per session_id)"]
+        VSess["VertexAiSessionService (Managed Agent Runtime)"]
+        RSess["RedisSessionService (Memorystore Sub-ms + TTL)"]
+        DBSess["DatabaseSessionService (Cloud SQL / AlloyDB ACID)"]
     end
-    
-    subgraph "Long-term (cross-conversation)"
-        Memory
+
+    subgraph LongTerm["Long-Term Memory Plane (Cross-Session per user_id)"]
+        MBank["VertexAiMemoryBankService (LLM-Extracted User Facts)"]
+        RagMem["VertexAiRagMemoryService (Large Corpus Vector Recall)"]
     end
+
+    subgraph RecallMode["ADK Memory Recall Trade-Off"]
+        Preload["preload_memory: Inject Before Model Call (0 Extra Tool Round-Trips)"]
+        OnDemand["load_memory: On-Demand Tool Call (+1 LLM Round-Trip When Needed)"]
+    end
+
+    Runtime <-->|"Read/Write Events & output_key"| ShortTerm
+    Runtime -->|"add_session_to_memory()"| LongTerm
+    LongTerm --> RecallMode
+    RecallMode --> Runtime
 ```
 
-### Session Services (`google.adk.sessions`)
-Session services store the conversation history and the typed state.
-- `InMemorySessionService`: Local testing only.
-- `DatabaseSessionService`: SQL-backed (e.g., Cloud SQL).
-- `VertexAiSessionService`: Serverless managed sessions in Agent Platform.
-- `RedisSessionService` (from `google.adk.integrations.redis`): High-speed caching in Memorystore for Redis.
+### 1. Managed Agent Runtime Pairing (`agent_engine_id`)
 
-You can move sessions between backends using the `adk migrate session` CLI command.
-Agents can write structured data directly to the session by binding their `output_schema` to an `output_key` that exists in the workflow's `state_schema`.
+On **Agent Runtime** (formerly Vertex AI Agent Engine), both services bind to the same `agent_engine_id`:
 
-### Memory Services (`google.adk.memory`)
-Memory services store facts.
-- `InMemoryMemoryService`: Local testing.
-- `VertexAiMemoryBankService`: Agent Platform Memory Bank (stores entities/facts extracted by the LLM).
-- `VertexAiRagMemoryService`: RAG-backed memory using Vector Search for large-scale semantic recall.
+- **`VertexAiSessionService(project, location, agent_engine_id)`:** Persists turn `Event` transcripts and structured `Session.state` mutations (`output_key`) serverlessly inside the Agent Platform perimeter (supporting VPC-SC and CMEK).
+- **`VertexAiMemoryBankService(project, location, agent_engine_id)`:** Uses managed LLM extraction to distill completed session transcripts into concise, deduplicated semantic user facts—updating facts over time when preferences change rather than dumping raw transcripts verbatim.
 
-### Recall Tools
-Agents retrieve long-term memory via built-in tools:
-- `load_memory`: On-demand tool call. The LLM decides when to search memory based on the user's prompt.
-- `preload_memory`: Automatic context injection. Memory is fetched proactively *before* the model responds.
+### 2. `preload_memory` vs. `load_memory` Latency & Token Trade-Offs
+
+| Built-In ADK Tool | Execution Timing | Extra LLM Round-Trips | Input Token Impact | Best Fit Scenario |
+| :--- | :--- | :--- | :--- | :--- |
+| **`preload_memory`** | Runs **proactively** inside the request preprocessor *before* the model call | **0** (single LLM turn) | **Higher base tokens** on every turn (memories always injected) | Personalized concierge / VIP support where user preferences matter on nearly every turn and P95 latency must stay low. |
+| **`load_memory`** | Exposed as a callable tool; the LLM decides whether to invoke it | **+1** when called (**0** when skipped) | **Lower average tokens** (zero memory tokens on generic queries) | Technical troubleshooting or mixed-intent chat where <15% of turns require historical user recall. |
+
+### 3. Session Backend Comparison & Migration
+
+| Session Backend | Package | Latency / Durability Profile | When to Choose on Cloud Run / GKE / Agent Runtime |
+| :--- | :--- | :--- | :--- |
+| **`VertexAiSessionService`** | `google.adk.sessions` | Managed HTTPS API · Zero-ops serverless | Default choice for **Agent Runtime (`adk deploy agent_engine`)** or teams wanting zero database administration. |
+| **`RedisSessionService`** | `google.adk.integrations.redis` | **Sub-millisecond** in-memory · `ttl_seconds` auto-expiry | High-QPS customer chat on **Cloud Run** or **GKE** via Serverless VPC Access / Direct VPC Egress to **Memorystore for Redis**. |
+| **`DatabaseSessionService`** | `google.adk.sessions` | Relational **ACID transactions** · SQL auditability | Regulated financial/healthcare workflows on **Cloud SQL**, **AlloyDB**, or **Spanner** requiring multi-region relational durability and SQL compliance audits. |
+| **`InMemorySessionService`** | `google.adk.sessions` | Process RAM only (ephemeral) | Local unit tests (`pytest`) and offline CI only—lost immediately on container scale-to-zero or restart! |
+
+> **Seamless Promotion:** Use `adk migrate session` to migrate persisted sessions when moving an application between session backends.
+
+### 4. Multi-Tenant Isolation & HIPAA / PCI Retention Hygiene
+
+- **Strict `(app_name, user_id, session_id)` Isolation:** Never trust a `user_id` supplied in an LLM prompt! Derive `user_id` deterministically from the verified OAuth/IAP/OIDC JWT `sub` claim in the gateway/runner layer so Tenant B (`cust-202`) gets `None` if attempting to load Tenant A's (`cust-101`) `session_id` or memories.
+- **Compliance Retention & PII/PHI Redaction:**
+  - Configure `ttl_seconds` (e.g., `1800`–`3600`s) and `ssl=True` on `RedisSessionServiceConfig` so abandoned support carts expire automatically without lingering PII.
+  - Scrub raw PCI card numbers (PAN) and unredacted HIPAA PHI via **Sensitive Data Protection (SDP)** or `before_agent_callback` *before* calling `add_session_to_memory()`—long-term `VertexAiMemoryBankService` should store safe operational facts (e.g., `"preferred pharmacy: downtown clinic"`), never raw SSNs or credit card numbers.
 
 ## 4. The decision that matters
 
-### Choosing a Session Backend
-| If you need... | Use | Why not the alternative |
+| If the exam scenario asks for... | Choose | Why the alternatives fail |
 | :--- | :--- | :--- |
-| Ultra-low latency for high-traffic chat | `RedisSessionService` | `VertexAiSessionService` introduces API latency; SQL is slower. |
-| Fully serverless managed history | `VertexAiSessionService` | Redis/SQL require provisioning and managing infrastructure (ops burden). |
-| Durable, multi-region ACID transactions | `DatabaseSessionService` | Redis is typically a cache and can lose data if not heavily configured. |
-
-### Choosing a Memory Service
-| If you need... | Use | Why not the alternative |
-| :--- | :--- | :--- |
-| Remembering a user's explicit preferences | `VertexAiMemoryBankService` | RAG is overkill for structured entity facts and costs more to embed. |
-| Recalling massive amounts of unstructured context | `VertexAiRagMemoryService` | Memory Bank isn't designed for large-scale semantic similarity search (vector recall). |
+| **Zero-ops managed short-term turns + cross-session user preferences on Agent Runtime** | **`VertexAiSessionService` + `VertexAiMemoryBankService`** sharing `agent_engine_id` | Self-managing Redis + custom Postgres fact tables adds unnecessary VPC/ops overhead on Agent Runtime. |
+| **Sub-millisecond session reads for 25,000 concurrent chat users on Cloud Run with automatic 30-minute idle expiry** | **`RedisSessionService`** (`Memorystore for Redis`, `ttl_seconds=1800`, `ssl=True`) | `VertexAiSessionService` and SQL incur higher per-turn network/disk latency; `InMemorySessionService` loses state across Cloud Run instances. |
+| **Always personalize every greeting without adding a tool-call round-trip** | **`preload_memory`** | `load_memory` forces the LLM to emit a tool call and wait for a second generation pass (+1 round-trip). |
+| **Semantic recall over 50,000 pages of unstructured PDF engineering manuals** | **`VertexAiRagMemoryService`** (or RAG Engine tool) | `VertexAiMemoryBankService` is optimized for extracted user/entity facts, not massive document chunk corpora. |
+| **Strict relational ACID audit trail of every state transition in Cloud SQL** | **`DatabaseSessionService`** | Standard Redis caches are not relational ACID ledgers. |
 
 ## 5. Hands-on A — offline (free)
+
+Run the offline lab to instantiate the Agent Runtime managed session/memory pair (`agent_engine_id`), verify `RedisSessionServiceConfig` TTL/TLS fields and `DatabaseSessionService`, prove strict per-`user_id` tenant isolation asynchronously, and evaluate `preload_memory` vs. `load_memory` latency/token math:
 
 ```bash
 ./tracks/03_custom_agents/lab_09_sessions_and_memory/run_lab.sh
 ```
-
-You will see the instantiation of various session and memory backends, the configuration of Memorystore for Redis, and how an agent binds to a `state_schema` via `output_key`.
 
 ## 6. Hands-on B — live on Google Cloud (opt-in)
 
@@ -90,18 +108,24 @@ You will see the instantiation of various session and memory backends, the confi
 ```
 
 > [!WARNING]
-> Cost note: This lab is fully local for demonstrations and will not incur cloud charges. Live mode relies on actual Redis/Vertex/SQL endpoints which are beyond the scope of this sandbox.
+> Cost note: Provisioning a live Agent Runtime (`agent_engine_id`) or Memorystore instance takes several minutes and incurs hourly charges, so `--live` runs the verified local state/memory isolation suite at $0 cost and prints exact `adk deploy agent_engine` / `adk migrate session` commands.
 
 ## 7. Verify it worked
 
-Check the terminal output. You should see ADK objects created successfully, including `RedisSessionServiceConfig` and `DatabaseSessionService`, proving you are using real ADK classes.
+Confirm that all checks in `LabReport` and `pytest` pass:
+
+- `VertexAiSessionService` and `VertexAiMemoryBankService` bind cleanly to `(project, location, agent_engine_id)`.
+- Cross-tenant `get_session(app_name, user_id="cust-202", session_id=cust_101_session.id)` returns `None`, preventing cross-customer state leakage.
+- `InMemoryMemoryService` recalls facts exclusively for the owning `user_id` and returns 0 hits for other tenants.
+- `preload_memory` completes in **1 LLM call** per turn vs. **2 LLM calls** when `load_memory` triggers on-demand.
 
 ## 8. Troubleshooting
 
 | Symptom | Cause | Fix |
 | :--- | :--- | :--- |
-| Cannot import `RedisSessionService` | Using the wrong import path | It lives in `google.adk.integrations.redis`, not `google.adk.sessions`. |
-| State validation error | `output_key` doesn't match `state_schema` | Ensure the key the agent writes to exists in the global schema. |
+| `ImportError: cannot import name 'RedisSessionService' from 'google.adk.sessions'` | Wrong module path | Import `RedisSessionService` and `RedisSessionServiceConfig` from `google.adk.integrations.redis`. |
+| Cloud Run agent forgets conversation randomly on turn 3 | Using `InMemorySessionService` across horizontally scaled stateless containers | Replace with `VertexAiSessionService`, `RedisSessionService`, or `DatabaseSessionService`. |
+| `StateSchemaError` when agent writes `output_key` | `output_key` name or Pydantic type mismatches `state_schema` | Ensure `AppState` declares a matching field and compatible type for every agent's `output_key`. |
 
 ## 9. Clean up
 
@@ -109,26 +133,28 @@ Check the terminal output. You should see ADK objects created successfully, incl
 ./tracks/03_custom_agents/lab_09_sessions_and_memory/cleanup.sh
 ```
 
+No persistent cloud resources are provisioned.
+
 ## 10. Exam traps
 
-- **Sessions vs Memory:** If a scenario says "Remember the customer's account ID when they return next week," that is **Memory**. If it says "Keep track of the shopping cart during the chat," that is **Session State**.
-- **Redis Import Path:** Memorystore for Redis is in `google.adk.integrations.redis`, not the core sessions package.
-- **`adk migrate session`:** This is a real CLI command to move session data between backends.
-- **On-demand vs Proactive:** `load_memory` requires an LLM tool call. `preload_memory` injects context automatically before generation.
+- **`InMemorySessionService` on Cloud Run / GKE:** Classic exam anti-pattern! Stateless autoscaling routes Turn 2 to a different container replica than Turn 1, losing in-memory sessions. Always pick a shared external backend (`VertexAiSessionService`, `RedisSessionService`, or `DatabaseSessionService`).
+- **Session State vs. Memory Bank:** Shopping cart items, multi-step wizard slots, and active tool outputs belong in **Session State** (`output_key`). Durable user preferences across weeks/months belong in **Memory Bank** (`VertexAiMemoryBankService`).
+- **`preload_memory` vs. `load_memory`:** Choose `preload_memory` when minimizing round-trip latency is paramount; choose `load_memory` when memory is rarely needed and you want to save prompt tokens on routine turns.
+- **Identity Spoofing via Prompt:** Never let an LLM fill `user_id` as a tool parameter! Bind `user_id` in the trusted host application from the authenticated OAuth/IAP token before calling `runner.run_async(user_id=...)`.
 
 ## 11. Check yourself
 
 <details>
-<summary>1. A retail agent needs to remember that a user prefers vegan recipes across all future interactions. Should this be stored in Session State or Memory?</summary>
-Memory (e.g., <code>VertexAiMemoryBankService</code>). Session state is for the current conversation only.
+<summary>1. You deploy a customer support agent to Agent Runtime (<code>adk deploy agent_engine</code>). Management wants zero database infrastructure to maintain, persistent active chat turns, and automatic recall of customer communication preferences across months. Which exact pair of ADK services do you configure?</summary>
+<code>VertexAiSessionService(project=..., location=..., agent_engine_id=...)</code> for short-term managed sessions and <code>VertexAiMemoryBankService(project=..., location=..., agent_engine_id=...)</code> for long-term cross-session extracted user facts.
 </details>
 
 <details>
-<summary>2. You want to store session state in Memorystore for Redis. Which config class must you instantiate?</summary>
-<code>RedisSessionServiceConfig</code>
+<summary>2. A VIP travel concierge agent needs every single response grounded in the traveler's loyalty tier and seating preferences while keeping P95 response latency under 1.2 seconds. Should you attach <code>load_memory</code> or <code>preload_memory</code>?</summary>
+<code>preload_memory</code>. It injects relevant Memory Bank facts proactively before the model call (0 extra LLM tool-call round-trips), whereas <code>load_memory</code> costs an extra tool-call generation pass on every turn that fetches preferences.
 </details>
 
 <details>
-<summary>3. Which ADK tool allows an agent to automatically fetch relevant user context before responding, saving a tool-call round trip?</summary>
-<code>preload_memory</code>
+<summary>3. Why must a healthcare support agent redact raw PHI/SSN fields before calling <code>add_session_to_memory()</code>, and how does ADK isolate memories across patients?</summary>
+Long-term memory persists across sessions, so storing raw PHI/PCI data expands compliance scope and retention risk; redact sensitive identifiers via Sensitive Data Protection (SDP) or lifecycle callbacks first, and rely on ADK's strict <code>(app_name, user_id)</code> partitioning bound to verified OAuth/OIDC identities so one patient's session can never query another patient's memories.
 </details>

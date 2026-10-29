@@ -1,7 +1,7 @@
-# Lab 14 — Deployment Runtimes
+# Lab 14 — Deployment Runtimes, Managed Sessions & Memory Bank
 
-**Exam section:** 4.2 Deploying and scaling production workloads (~22% of the exam)
-**Objectives covered:** 4.2 (Selecting optimal deployment runtime based on use case, requirements, and cost - Agent Runtime, Cloud Run, GKE)
+**Exam section:** 4.2 Deploying and scaling production workloads (~22% of the exam) & 3.1 Sessions and memory
+**Objectives covered:** 4.2 (Selecting optimal deployment runtime based on use case, requirements, and cost — Agent Runtime, Cloud Run, GKE), 3.1 (Configuring sessions and memory — Agent Platform Memory Bank and managed sessions)
 **Time:** ~25 minutes · **Cost:** Free offline / ~$1.00 live
 
 ---
@@ -12,71 +12,55 @@
 
 > Quoted verbatim from the official exam guide:
 > - "Selecting optimal deployment runtime based on use case, requirements, and cost (Agent Runtime, Cloud Run, GKE)"
+> - "Configuring sessions and memory (e.g., Agent Platform Memory Bank and managed sessions)"
 
 ## 2. Explain it simply
 
-Once your agent is built and tested, you need to host it somewhere so users or systems can talk to it. The ADK CLI gives you several deployment targets. Think of them as renting different kinds of cars:
-- **Agent Runtime (Agent Engine):** A taxi. You just get in and tell it where to go. Google manages everything else.
-- **Cloud Run:** A rental car. You drive, but you don't worry about maintenance, and you only pay when you're driving.
-- **GKE (Google Kubernetes Engine):** Buying a fleet of trucks. You have total control, massive scale, and can carry custom hardware (like GPUs), but you are responsible for maintaining the garage.
-- **Compute Engine:** Buying individual truck parts and assembling them. Maximum control, but maximum operational burden. Rarely the right choice for just hosting an ADK agent unless you have very specific legacy requirements.
+The exam does **not** test generic Google Cloud VM trivia here — it tests **how your deployment runtime interacts with multi-turn agent state, long-term memory, network perimeters, and workload identity**:
+
+- **Agent Runtime (`adk deploy agent_engine`):** Managed Vertex AI hosting purpose-built for ADK agents. It wires directly into **managed sessions (`VertexAiSessionService`)**, **Agent Platform Memory Bank (`VertexAiMemoryBankService`)**, managed code sandboxes (`AgentEngineSandboxCodeExecutor`), and dedicated **Agent Identity**. Choose this whenever you call SaaS Gemini models and want minimal operational overhead.
+- **Cloud Run (`adk deploy cloud_run`):** Serverless containers that **scale to zero ($0 idle cost)** and trigger cleanly from **Eventarc / Pub/Sub / webhooks**. Because Cloud Run containers are ephemeral and stateless, `InMemorySessionService` loses conversation history whenever requests hit another replica — you **must** attach an external state backend (`RedisSessionService` on Memorystore, `DatabaseSessionService` on Cloud SQL/AlloyDB, or `VertexAiSessionService`).
+- **GKE (`adk deploy gke`):** Kubernetes clusters required only when you hit Agent Runtime's architectural boundaries: **self-hosting open-weight SLMs/LLMs on GPUs (`Gemma 4`)**, **GKE Inference Gateway (`InferencePool` KV-cache & LoRA routing)**, or **kernel-isolated `GkeCodeExecutor(executor_type="sandbox")` on gVisor**.
 
 ## 3. How it works
 
 ```mermaid
-graph TD
-    A[Agent Code] --> B{adk deploy ...}
-    B -->|agent_engine| C[Agent Runtime / Reasoning Engine]
-    B -->|cloud_run| D[Cloud Run]
-    B -->|docker| E[Local/Custom Docker]
-    B -->|gke| F[GKE Cluster]
+flowchart TD
+    Code["ADK Agent App + Dedicated Least-Privilege SA"] --> CLI{"adk deploy ..."}
+
+    CLI -->|"agent_engine<br/>(--worker_pool for VPC-SC)"| AE["Agent Runtime<br/>(Vertex AI Reasoning Engine)"]
+    AE --> VSess["Managed Sessions<br/>(VertexAiSessionService)"]
+    AE --> VMem["Memory Bank<br/>(VertexAiMemoryBankService)"]
+
+    CLI -->|"cloud_run<br/>(--otel_to_cloud)"| CR["Cloud Run<br/>(Scale-to-Zero · Eventarc)"]
+    CR --> Redis["External Session Store<br/>(RedisSessionService / DatabaseSessionService)"]
+
+    CLI -->|"gke<br/>(--cluster_name)"| GKE["GKE Cluster<br/>(Workload Identity Federation)"]
+    GKE --> GPU["Self-Hosted Gemma 4 GPUs + InferencePool<br/>& gVisor GkeCodeExecutor ('sandbox')"]
 ```
 
-Under the hood, `adk deploy` packages your agent into a container (via Cloud Build) and pushes it to the target.
+### Runtime, State & Identity Architecture Matrix
 
-### Serving Locally
-Before deploying, you can serve your agent locally using:
-- `adk api_server`: Starts a FastAPI server for agents, perfect for headless testing.
-- `adk web`: Starts a FastAPI server with a Web UI, perfect for visual testing (`--with_ui` is enabled by default).
+| Dimension | Agent Runtime (`adk deploy agent_engine`) | Cloud Run (`adk deploy cloud_run`) | GKE (`adk deploy gke`) |
+| :--- | :--- | :--- | :--- |
+| **Idle Cost & Scaling** | Managed warm instances; billed on active Reasoning Engine compute | **Scales to zero ($0 idle)**; rapid HTTP & Eventarc burst scaling | Node pools run 24/7 (Autopilot/HPA scales pods & GPU nodes) |
+| **Short-Term Turn State (`SessionService`)** | Native **`VertexAiSessionService`** (`agentengine://`) | Must configure external **`RedisSessionService`** (`redis://`) or **`DatabaseSessionService`** | External `RedisSessionService`, `DatabaseSessionService`, or `VertexAiSessionService` |
+| **Long-Term Cross-Session Recall (`MemoryService`)** | Native **`VertexAiMemoryBankService`** (synthesizes durable user facts across sessions) | `VertexAiMemoryBankService` or `VertexAiRagMemoryService` (`rag://`) | `VertexAiMemoryBankService` or self-hosted vector store |
+| **Code Execution Sandbox** | `AgentEngineSandboxCodeExecutor` | `CloudRunSandboxCodeExecutor(allow_egress=False)` (`--with_cloud_run_sandbox`) | `GkeCodeExecutor(executor_type="sandbox")` (gVisor `runsc` kernel isolation) |
+| **VPC-SC & Private Build** | Pass **`--worker_pool=projects/.../workerPools/...`** so Cloud Build stays inside VPC-SC | Serverless VPC Access / Direct VPC Egress + private Cloud Build pool | Private GKE cluster (`ClusterIP` / Internal Load Balancer) |
+| **Workload Identity Best Practice** | Dedicated **Agent Identity** / custom Reasoning Engine SA | Dedicated per-service Cloud Run SA (`--service_account=...`) | **GKE Workload Identity Federation** (`iam.gke.io/gcp-service-account` per Kubernetes SA) |
 
-Both support `--session_service_uri` and `--memory_service_uri` to test stateful backends locally.
-
-### Exact CLI Flags
-When deploying to Google Cloud, the exact flags you pass determine the environment's capabilities:
-
-- **Agent Engine**: `adk deploy agent_engine . --project=MY_PROJECT --region=us-central1 --worker_pool=projects/...`
-  - `--worker_pool`: Required for VPC-SC / private-network environments that cannot use the default public Cloud Build pool.
-  - `--extra_packages`: Stuffs additional local packages into the container for dependency pinning.
-- **Cloud Run**: `adk deploy cloud_run . --project=MY_PROJECT --region=us-central1 --otel_to_cloud --session_service_uri=redis://...`
-  - `--otel_to_cloud`: Enables OpenTelemetry export to GCP (Cloud Trace and Cloud Logging).
-  - `--with_cloud_run_sandbox`: Enables the Cloud Run sandbox for code execution (requires beta track).
-- **GKE**: `adk deploy gke . --project=MY_PROJECT --region=us-central1 --cluster_name=my-cluster --service_type=LoadBalancer`
-  - `--service_type`: Determines if it's exposed externally (`LoadBalancer`) or kept internal (`ClusterIP`).
-- **Docker**: `adk deploy docker .`
-  - Useful for manually taking the generated image and deploying to Compute Engine or on-prem.
-
-### Scaling, Cold Starts, and Sessions
-- **Cold Starts**: Cloud Run scales to zero, meaning the first request after a period of inactivity will take longer (cold start). Agent Engine and GKE typically keep instances warm.
-- **Session Durability**: Cloud Run and GKE replicas are ephemeral. If you rely on in-memory sessions, subsequent requests might hit a different replica and lose state. You MUST use a remote session service (`--session_service_uri=redis://...` or `agentengine://`) for session durability across replicas.
+> [!CAUTION]
+> **Critical Security Anti-Pattern Tested on the Exam:** Never deploy an agent on Cloud Run, GKE nodes, or Agent Runtime using the **default Compute Engine Service Account** (`<PROJECT_NUMBER>-compute@developer.gserviceaccount.com`), which traditionally receives broad project-wide `roles/editor` permissions. Always provision a dedicated, single-purpose Service Account / Agent Identity with least-privilege predefined roles.
 
 ## 4. The decision that matters
 
-| If you need... | Use | Why not the alternative |
+| If the scenario requires... | Choose | Why the alternatives are wrong |
 | :--- | :--- | :--- |
-| Zero-ops, managed Vertex AI integration, out-of-the-box memory | **Agent Runtime (`adk deploy agent_engine`)** | Limited customizability, no custom GPU node pools, restricted networking/sandbox options compared to GKE. |
-| Scale-to-zero, low cost, event-driven HTTP (Eventarc) | **Cloud Run (`adk deploy cloud_run`)** | Does not support multi-node GPU InferencePools or stateful KV-cache routing across pods. |
-| Self-hosted open-weight GPUs (`Gemma 4`), **GKE Inference Gateway** (`InferencePool`), or **GKE Agent Sandbox** (`gVisor`) | **GKE (`adk deploy gke`)** | Agent Runtime cannot attach custom GPU node pools, cannot deploy `InferencePool` KV-cache routers, and cannot run custom `GkeCodeExecutor(executor_type="sandbox")` pods. |
-| Legacy OS requirements, extreme kernel tuning | **Compute Engine** | You have to manage the OS, patching, and scaling yourself. Use GKE instead if possible. |
-
-### Hard Limitations of Agent Runtime (When You MUST Choose GKE Instead)
-
-Exam scenarios frequently test whether you know where **Agent Runtime** stops working:
-1. **No Self-Hosted Open-Weight GPU Node Pools:** You cannot run vLLM/TGI on NVIDIA L4/A100/H100 GPUs inside Agent Runtime. If an architecture requires hosting `gemma-4-31b-it` or `gemma-4-26b-a4b-it` on dedicated GPUs, choose **GKE**.
-2. **No GKE Inference Gateway (`InferencePool` / `InferenceModel`):** KV-cache aware routing, prefix-cache affinity, dynamic LoRA adapter multiplexing, and criticality-based load shedding require **GKE Inference Gateway**.
-3. **No Custom GKE Agent Sandbox (`gVisor` Pod Templates) or Sidecar DaemonSets:** If the agent requires custom Kubernetes NetworkPolicies, Istio/Anthos service mesh sidecars, or `GkeCodeExecutor(executor_type="sandbox", sandbox_gateway_name=...)`, choose **GKE**.
-
-> [!WARNING]
-> **Naming Trap!** The exam guide refers to **"Agent Runtime"**. However, the actual ADK CLI command remains **`adk deploy agent_engine`**. If you see "Agent Runtime" on the exam, know that it corresponds to the `agent_engine` subcommand and the Vertex AI Reasoning Engine API.
+| Fastest path to production for a multi-turn customer support ADK agent needing managed conversation state and cross-session user preference recall | **Agent Runtime (`adk deploy agent_engine`) + `VertexAiSessionService` + `VertexAiMemoryBankService`** | Cloud Run requires provisioning and operating external Redis/SQL session stores; GKE adds unnecessary cluster ops overhead. |
+| Deploying to Agent Runtime inside an enterprise **VPC Service Controls (VPC-SC)** perimeter where default Cloud Build fails with perimeter violations | **`adk deploy agent_engine --worker_pool=projects/...`** | Default Cloud Build runs outside your VPC-SC perimeter; a private Cloud Build `--worker_pool` keeps container builds inside the perimeter. |
+| Bursty internal webhook / PubSub / Eventarc agent invoked only ~40 times a day where idle compute cost must be $0 | **Cloud Run (`adk deploy cloud_run`) + `RedisSessionService` / `DatabaseSessionService`** | GKE GPU/CPU nodes and always-warm clusters waste budget during 23+ hours of daily idle time. |
+| Regulated air-gapped healthcare/finance agent serving open-weight `gemma-4-26b-a4b-it` on NVIDIA L4 GPUs with prefix-cache routing and gVisor code sandboxes | **GKE (`adk deploy gke`) + GKE Inference Gateway + `GkeCodeExecutor(executor_type="sandbox")`** | Agent Runtime cannot attach custom GPU node pools for vLLM serving or configure `InferencePool` KV-cache routing. |
 
 ## 5. Hands-on A — offline (free)
 
@@ -84,44 +68,43 @@ Exam scenarios frequently test whether you know where **Agent Runtime** stops wo
 ./tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes/run_lab.sh
 ```
 
-In the offline mode, the script mocks the deployment and displays the underlying `adk deploy` commands that *would* be run. The tests verify that the exact CLI flags and targets map correctly to ADK 2.9.0's supported surfaces.
+The offline runner instantiates ADK 2.9.0's real `VertexAiSessionService`, `VertexAiMemoryBankService`, `AgentEngineSandboxCodeExecutor`, `RedisSessionServiceConfig`, and `CloudRunSandboxCodeExecutor`, generates exact VPC-SC and stateless-safe `adk deploy` CLI commands, and runs a security/statefulness auditor that catches `InMemorySessionService` and default Compute Engine SA anti-patterns.
 
 ## 6. Hands-on B — live on Google Cloud (opt-in)
-
-Ensure you have credentials and a project set:
 
 ```bash
 export GOOGLE_CLOUD_PROJECT="your-project-id"
 export GOOGLE_CLOUD_LOCATION="us-central1"
-```
 
-To deploy to Cloud Run:
-```bash
-./tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes/run_lab.sh --live cloud_run
-```
+# Deploy to Agent Runtime (with private Cloud Build worker pool if inside VPC-SC):
+adk deploy agent_engine tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes \
+  --project="$GOOGLE_CLOUD_PROJECT" \
+  --region="$GOOGLE_CLOUD_LOCATION"
 
-To deploy to Agent Engine:
-```bash
-./tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes/run_lab.sh --live agent_engine
+# Or deploy to Cloud Run with dedicated SA and Cloud Trace export:
+adk deploy cloud_run tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes \
+  --project="$GOOGLE_CLOUD_PROJECT" \
+  --region="$GOOGLE_CLOUD_LOCATION" \
+  --otel_to_cloud
 ```
 
 > [!WARNING]
-> Cost note: Deploying to Cloud Run incurs minimal costs (fraction of a cent per request). Deploying to Agent Engine incurs similar managed compute costs. Provisioning a GKE cluster just for this lab will cost several dollars an hour.
+> Cost note: Cloud Run bills per-request CPU/memory with a generous free tier. Agent Runtime bills for active Reasoning Engine instance hours. Delete live test deployments when finished.
 
 ## 7. Verify it worked
 
-1. If deploying to Cloud Run, look for a new service in the Google Cloud Console under "Cloud Run".
-2. If deploying to Agent Runtime, look for a Reasoning Engine resource in Vertex AI.
-3. Both runtimes should expose an API endpoint that you can query with HTTP POST requests.
+1. Confirm `VertexAiSessionService` and `VertexAiMemoryBankService` bind cleanly to `(project, location, agent_engine_id)`.
+2. Confirm `CloudRunSandboxCodeExecutor(allow_egress=False)` disables arbitrary outbound internet access inside the sandbox.
+3. Confirm `validate_runtime_identity_and_state` rejects `<project-number>-compute@developer.gserviceaccount.com`, `InMemorySessionService` in multi-replica production, and missing `--worker_pool` under VPC-SC.
 
 ## 8. Troubleshooting
 
 | Symptom | Cause | Fix |
 | :--- | :--- | :--- |
-| `adk deploy gke` fails with cluster not found | The cluster doesn't exist or isn't in your active project. | Ensure `gcloud container clusters get-credentials` works and you pass `--cluster_name`. |
-| Deploy fails on Cloud Run with `PermissionDenied` | Missing IAM roles for Cloud Build or Artifact Registry. | Grant `roles/cloudbuild.builds.builder` and `roles/run.admin` to your deployment user/service account. |
-| `ImportError` on deploy | Missing `requirements.txt` or unsupported packages in your agent folder. | Ensure all dependencies (like `google-adk`) are explicitly listed. |
-| Sessions reset on Cloud Run | Relying on default in-memory sessions across ephemeral instances. | Supply `--session_service_uri` pointing to a Redis instance or database. |
+| Multi-turn Cloud Run agent forgets user context on turn 2 or 3 | Default `InMemorySessionService` stores state in one container's RAM while load balancing hits a second replica. | Pass `--session_service_uri` backed by Memorystore (`RedisSessionService`), Cloud SQL (`DatabaseSessionService`), or `VertexAiSessionService`. |
+| `adk deploy agent_engine` fails with VPC Service Controls violation during container build | Default Cloud Build pool runs outside the project's VPC-SC perimeter. | Create a Cloud Build Private Pool inside the perimeter and pass `--worker_pool=projects/.../locations/.../workerPools/...`. |
+| Agent remembers turns *within* one chat tab, but forgets the user's preferences when they open a *new* session tomorrow | Only `SessionService` (short-term state) was configured without `MemoryService` (long-term recall). | Attach `VertexAiMemoryBankService` and equip the agent with `load_memory` / `preload_memory` tools. |
+| Security review blocks Cloud Run / GKE deployment for excessive blast radius | Workload runs as `<number>-compute@developer.gserviceaccount.com` with `roles/editor`. | Create a dedicated Service Account with only `roles/aiplatform.user` (plus specific tool roles) and bind via `--service_account` or Workload Identity Federation. |
 
 ## 9. Clean up
 
@@ -129,32 +112,32 @@ To deploy to Agent Engine:
 ./tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes/cleanup.sh
 ```
 
-If you deployed live:
+If you deployed live resources:
 ```bash
-gcloud run services delete your-agent-name --region=$GOOGLE_CLOUD_LOCATION --quiet
-# Or for Agent Engine:
-# gcloud ai reasoning-engines delete <id>
+gcloud run services delete simple-agent --region="$GOOGLE_CLOUD_LOCATION" --quiet
+# Or for Agent Runtime:
+# gcloud ai reasoning-engines delete REASONING_ENGINE_ID --region="$GOOGLE_CLOUD_LOCATION" --quiet
 ```
 
 ## 10. Exam traps
 
-- **Agent Runtime vs Agent Engine:** They are the same thing. The CLI says `agent_engine`.
-- **Docker is a target:** `adk deploy docker` is a valid subcommand. It generates a Docker image locally but does not push to a managed runtime.
-- **Stateful Memory:** Cloud Run is stateless. If you use memory on Cloud Run, you MUST back it with a remote service like `--memory_service_uri rag://...` or Redis, otherwise sessions vanish between requests.
+- **"Agent Runtime" == `adk deploy agent_engine`:** The exam blueprint calls the managed service **Agent Runtime**, while the ADK CLI subcommand is `adk deploy agent_engine` (backed by Vertex AI Reasoning Engine).
+- **Sessions vs. Memory Bank:** **Managed Sessions (`VertexAiSessionService`)** store chronological turn-by-turn events and state keys for *one active conversation*. **Agent Platform Memory Bank (`VertexAiMemoryBankService`)** extracts and persists long-term semantic memories *across separate sessions* for the same user.
+- **Four `adk deploy` Targets:** ADK 2.9.0 exposes exactly four `adk deploy` targets: `agent_engine`, `cloud_run`, `gke`, and `docker` (which builds a container locally without pushing to a managed runtime).
 
 ## 11. Check yourself
 
 <details>
-<summary>1. You are running an OSS model using Gemma3Ollama locally and need to deploy it with your agent. You require direct GPU access. Which deployment target is best?</summary>
-GKE. Neither Cloud Run nor Agent Runtime provide native GPU support for custom self-hosted model execution within the same container instance easily.
+<summary>1. A retail customer-support agent deployed on Cloud Run intermittently forgets items the customer mentioned two messages earlier during peak traffic. What is the root cause and fix?</summary>
+Cloud Run autoscaled across multiple stateless container instances while the agent was still using `InMemorySessionService`. Fix it by configuring a shared external session store (`RedisSessionService` on Memorystore, `DatabaseSessionService`, or `VertexAiSessionService`).
 </details>
 
 <details>
-<summary>2. You need your agent to scale to zero to save costs during off-peak hours and respond to Pub/Sub events. Which deployment target is best?</summary>
-Cloud Run. It offers scale-to-zero and integrates natively with Eventarc/PubSub for event-driven invocations.
+<summary>2. How do `VertexAiSessionService` and `VertexAiMemoryBankService` differ in an Agent Runtime architecture?</summary>
+`VertexAiSessionService` manages short-term, turn-by-turn conversation history and session state within a single session ID, whereas `VertexAiMemoryBankService` distills and retrieves long-term user facts and preferences across multiple sessions over weeks or months.
 </details>
 
 <details>
-<summary>3. What CLI flag would you use to attach a Vertex AI Rag Memory Service to your Cloud Run deployed agent?</summary>
-`--memory_service_uri="rag://<corpus_id>"`
+<summary>3. Your security team enforces VPC Service Controls (VPC-SC) and bans default service accounts. Which two configurations are mandatory when running `adk deploy agent_engine`?</summary>
+Pass `--worker_pool` pointing to a private Cloud Build worker pool inside the VPC-SC perimeter, and bind a dedicated least-privilege Agent Identity / custom Service Account rather than the default Compute Engine service account.
 </details>

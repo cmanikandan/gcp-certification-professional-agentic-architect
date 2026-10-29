@@ -1,8 +1,8 @@
-# Lab 15 — Observability and Troubleshooting
+# Lab 15 — Observability, Loop Guardrails & HIPAA-Safe Telemetry
 
 **Exam section:** 4.2 Deploying and scaling production workloads (~22% of the exam)
-**Objectives covered:** 4.2 (Troubleshooting agent issues, monitoring and optimizing agents)
-**Time:** ~30 minutes · **Cost:** Free offline / ~$1.00 live
+**Objectives covered:** 4.2 (Troubleshooting agent issues — drift, tool invocation latency, agent reasoning loops, system failures; monitoring and optimizing agents for performance, reliability, and cost)
+**Time:** ~30 minutes · **Cost:** Free offline / ~$0.05 live
 
 ---
 
@@ -16,37 +16,54 @@
 
 ## 2. Explain it simply
 
-Operating agents in production requires deep observability. Traditional Application Performance Monitoring (APM) tells you that an HTTP endpoint took 5 seconds and returned a 200 OK. But was that 5 seconds spent waiting for a slow API call (tool), or was the model taking a long time to generate a reasoning plan? If the agent loops between calling a tool and getting an error, a standard APM just sees a long response time.
+A traditional HTTP dashboard only tells you *"POST `/run` returned `200 OK` in 18 seconds."* For an autonomous agent, 18 seconds could mean three completely different emergencies requiring opposite fixes:
+1. **Tool Invocation Latency (`trace_tool_call`):** The LLM responded in 400 ms, while a downstream SQL or ERP API hung for 17 seconds — or the agent called five independent tools sequentially instead of batching them in parallel (`trace_merged_tool_calls`).
+2. **LLM Generation Latency (`trace_call_llm`):** Tool calls took 200 ms, while the LLM spent 17 seconds prefilling 400,000 uncompacted conversation tokens or running an over-provisioned Pro reasoning model on a trivial routing turn.
+3. **Agent Reasoning Loop:** Both the LLM and tool are fast, yet the tool keeps returning a recoverable schema error and the agent retries it 25 times in a row, burning tokens until the gateway times out.
 
-ADK uses OpenTelemetry to trace every step of an agent's turn. It breaks down the single HTTP request into spans for the model call, tool executions, and sub-agent handoffs, and tracks metrics like token usage and cost.
+In **HIPAA and PCI-regulated environments**, turning on naive debug logging creates a second crisis: raw patient PHI (names, SSNs, diagnoses) gets written directly into Cloud Trace span attributes and Cloud Logging! ADK 2.9.0 solves both problems with **structured OpenTelemetry spans**, **hard loop-termination caps**, and **`ContentCapturingMode.NO_CONTENT`**.
 
 ## 3. How it works
 
 ```mermaid
-graph TD
-    A[User Request] --> B(Agent Node)
-    B --> C(Model Call: gemini-3.7-flash)
-    B --> D{Tool Invocation: Search}
-    D --> |Error| C
-    C --> |Retry Tool| D
-    D --> |Success| C
-    C --> E[Final Response]
+flowchart TD
+    Req["Incoming Turn"] --> RC["RunConfig<br/>(max_llm_calls=8 · ContentCapturingMode.NO_CONTENT)"]
+    RC --> LLM["Span: trace_call_llm<br/>(Latency · Token Counts · Zero Raw PHI)"]
+    LLM -->|"Parallel Tool Calls"| Merged["Span: trace_merged_tool_calls"]
+    LLM -->|"Single Tool Call"| Tool["Span: trace_tool_call<br/>+ ReflectAndRetryToolPlugin (max_retries=2)"]
+    Tool -->|"Error <= max_retries"| LLM
+    Tool -->|"Exceeds max_retries / LoopAgent.max_iterations=3"| Halt["Deterministic Circuit Break / Escalate"]
+    Merged --> Done["Final Response + Metrics Export"]
 ```
 
-When you enable `adk telemetry`, ADK emits structured traces:
-1. **Trace Hierarchy:** The entire turn is a root span. Child spans represent individual model calls and tool invocations.
-2. **Latency Attribution:** You can clearly separate "time spent waiting for the LLM" from "time spent waiting for a backend API".
-3. **Loop Detection:** If an agent gets stuck in a retry loop (e.g., repeatedly generating invalid SQL), the trace will show multiple `trace_tool_call` spans alternating with LLM calls.
-4. **Token Accounting:** Spans contain metadata for input and output token counts, allowing cost attribution per turn.
+### Core ADK 2.9.0 Observability, Loop & Optimization Controls
+
+1. **OpenTelemetry Span Hierarchy (`google.adk.telemetry`):**
+   - `trace_call_llm`: Records model latency, `gen_ai.usage.input_tokens`, and `gen_ai.usage.output_tokens`.
+   - `trace_tool_call` & `trace_merged_tool_calls`: Separates single tool execution from concurrent parallel tool fan-out.
+   - Exported automatically on Cloud Run / Agent Runtime with `--otel_to_cloud` or `adk telemetry enable`.
+2. **Three Layered Loop-Breaker Controls:**
+   - **`RunConfig(max_llm_calls=8)`**: Hard ceiling on total LLM calls per invocation — stops runaway ReAct/tool loops regardless of agent topology.
+   - **`LoopAgent(..., max_iterations=3)`** *(plus the `exit_loop` tool)*: Caps iterative critic/refinement loops. *(Note: in ADK 2.9.0, `LoopAgent` emits a `DeprecationWarning` in favor of `Workflow`, though it remains necessary when nested as a sub-agent of an `LlmAgent`.)*
+   - **`ReflectAndRetryToolPlugin(max_retries=2, throw_exception_if_retry_exceeded=True)`**: Intercepts malformed tool invocations, feeds structured validation feedback to the LLM for up to `max_retries` self-corrections, and halts cleanly instead of looping forever.
+3. **HIPAA / Regulated PII Telemetry Redaction (`TelemetryConfig`):**
+   - `ContentCapturingMode` offers four levels: `NO_CONTENT`, `EVENT_ONLY`, `SPAN_ONLY`, and `SPAN_AND_EVENT`.
+   - Production HIPAA/financial deployments **must** set `TelemetryConfig(capture_message_content=ContentCapturingMode.NO_CONTENT)` (or pair upstream **Model Armor SDP de-identification** templates) so Cloud Trace records latencies, error codes, and token counts *without* storing Protected Health Information in span payloads.
+4. **Prompt Optimization (`adk optimize`) & Regression Replay (`adk conformance`):**
+   - **`adk optimize`**: Runs ADK's **GEPA optimizer** (`google.adk.optimization.gepa_root_agent_prompt_optimizer`) against an `.evalset.json` to systematically refine root agent instructions for accuracy and token efficiency.
+   - **`adk conformance record` / `adk conformance test`**: Records real multi-step trajectories and replays them deterministically in CI to detect behavioral drift.
+5. **Least-Privilege Observability IAM:**
+   - Grant the runtime Service Account **only** `roles/cloudtrace.agent`, `roles/logging.logWriter`, and `roles/monitoring.metricWriter` — never `roles/editor` or `roles/logging.admin`.
 
 ## 4. The decision that matters
 
-| If you need to monitor... | Use | Why not the alternative |
+| Production Symptom / Requirement | Exact Architectural Fix | Why the Distractor Fails |
 | :--- | :--- | :--- |
-| Why a specific request took 15 seconds | Cloud Trace (via OpenTelemetry) | Cloud Logging is unstructured; finding the exact sequence of tool calls is hard. |
-| Aggregated token spend across all users | Cloud Monitoring (Metrics) | Trace data is sampled and not meant for precise aggregate financial metrics. |
-| Tool error rates causing reasoning loops | Cloud Trace + Log Alerts | A standard HTTP 500 alert won't catch agents that gracefully handle the error but get stuck in a loop. |
-| Regression detection after model updates | `adk conformance test` | Traditional unit tests don't capture the multi-step nature of agent interactions. |
+| Turn takes 16s; Cloud Trace shows `trace_call_llm` = 0.6s and `trace_tool_call` = 15.2s | **Add downstream API timeouts, connection pooling, Redis caching, or parallel `trace_merged_tool_calls`** | Switching to a smaller LLM (`gemini-3.5-flash-lite`) saves <0.2s because 95% of latency is inside the external tool API. |
+| Turn takes 16s; Cloud Trace shows `trace_call_llm` = 15.5s with 450,000 `input_tokens` | **Enable `App(events_compaction_config=..., context_cache_config=...)` and route simple subtasks to Flash-Lite** | Optimizing backend database indexes does nothing when prompt prefill tokens dominate TTFT. |
+| Agent silently burns $4 in tokens per request retrying a broken SQL query 30 times | **Combine `RunConfig(max_llm_calls=8)` + `ReflectAndRetryToolPlugin(max_retries=2)`** | Increasing HTTP gateway timeout from 60s to 300s only lets the runaway loop spend 5x more tokens! |
+| Healthcare compliance audit flags patient symptoms and MRNs visible inside Cloud Trace Explorer | **Set `TelemetryConfig(capture_message_content=ContentCapturingMode.NO_CONTENT)`** | Deleting `roles/cloudtrace.agent` blinds SREs to latency outages; `NO_CONTENT` preserves span timing & token metrics with zero PHI leakage. |
+| Automatically improving root agent prompt instructions against a golden `.evalset.json` without manual prompt guesswork | **Run `adk optimize` (GEPA optimizer)** | Manual trial-and-error lacks systematic evalset hill-climbing. |
 
 ## 5. Hands-on A — offline (free)
 
@@ -54,84 +71,62 @@ When you enable `adk telemetry`, ADK emits structured traces:
 ./tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting/run_lab.sh
 ```
 
-In the offline mode, the script simulates a multi-step agent turn (a model call followed by a tool failure and retry) and emits a structured local trace to the console. It computes derived metrics such as per-step latency and tool error rates.
+The offline runner verifies ADK 2.9.0's `trace_call_llm`, `trace_tool_call`, and `trace_merged_tool_calls` hooks, classifies three synthetic OpenTelemetry traces (`agent_reasoning_loop`, `tool_invocation_latency`, `llm_generation_latency`), instantiates `RunConfig(max_llm_calls=8, telemetry=TelemetryConfig(capture_message_content=ContentCapturingMode.NO_CONTENT))` + `ReflectAndRetryToolPlugin` + `LoopAgent`, and audits least-privilege observability IAM roles.
 
 ## 6. Hands-on B — live on Google Cloud (opt-in)
-
-Ensure you have credentials and a project set:
 
 ```bash
 export GOOGLE_CLOUD_PROJECT="your-project-id"
 export GOOGLE_CLOUD_LOCATION="us-central1"
+
+# Check telemetry status and deploy with Cloud Trace / Cloud Logging export:
+adk telemetry status
+./tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting/run_lab.sh --live
 ```
 
-1. Enable telemetry in ADK:
-   ```bash
-   adk telemetry enable
-   ```
-
-2. Run the lab live:
-   ```bash
-   ./tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting/run_lab.sh --live
-   ```
-
-3. To export telemetry to Google Cloud when deploying, use the `--otel_to_cloud` flag:
-   ```bash
-   adk deploy cloud_run . --project=$GOOGLE_CLOUD_PROJECT --region=$GOOGLE_CLOUD_LOCATION --otel_to_cloud
-   ```
-
 > [!WARNING]
-> Cost note: Generating traces and metrics will incur standard Cloud Observability charges, which are generally a few cents for a lab run. The agent inference itself will cost standard Gemini API rates.
+> Cost note: Cloud Trace and Cloud Monitoring ingestion for a single test session costs less than $0.05.
 
 ## 7. Verify it worked
 
-**Querying Logs for Tool Errors:**
-```bash
-gcloud logging read 'resource.type="cloud_run_revision" AND textPayload:"Tool execution failed"' --limit=10
-```
-
-**Viewing Traces in Cloud Console:**
-Navigate to **Cloud Trace > Trace Explorer** and look for spans named `trace_call_llm` and `trace_tool_call`.
+1. Confirm `diagnose_trace_bottleneck` separates slow external tools (`tool_invocation_latency`), bloated context generation (`llm_generation_latency`), and repeated failing retries (`agent_reasoning_loop`).
+2. Confirm `hipaa_run_cfg.telemetry.capture_message_content == ContentCapturingMode.NO_CONTENT`.
+3. Confirm `audit_observability_iam_roles` accepts `{roles/cloudtrace.agent, roles/logging.logWriter, roles/monitoring.metricWriter}` and rejects `roles/editor`.
 
 ## 8. Troubleshooting
 
 | Symptom | Cause | Fix |
 | :--- | :--- | :--- |
-| No traces appearing in Cloud Trace | Missing IAM permissions | Ensure the runtime service account has `roles/cloudtrace.agent` and `roles/monitoring.metricWriter`. |
-| Agent timeouts without obvious errors | Agent reasoning loop | Check Cloud Trace. If you see dozens of sequential `trace_tool_call` spans, the agent is stuck in a retry loop. Increase instruction clarity or limit iterations. |
-| `adk telemetry enable` fails | Environment variable conflicts | Ensure you aren't overriding OpenTelemetry endpoints via custom `OTEL_EXPORTER_OTLP_ENDPOINT` variables unless intended. |
+| `--otel_to_cloud` is enabled on Cloud Run, yet zero spans appear in Cloud Trace | Runtime Service Account lacks Trace write permission. | Grant `roles/cloudtrace.agent` (plus `roles/logging.logWriter` and `roles/monitoring.metricWriter`) to the dedicated runtime SA. |
+| Cloud Trace shows spans and durations, yet prompt/response text fields are blank during local debugging | `ContentCapturingMode.NO_CONTENT` is active. | Keep `NO_CONTENT` in production; switch to `SPAN_AND_EVENT` **only** in isolated non-PHI dev projects. |
+| Agent throws `MaxLlmCallsExceeded` on legitimate 10-step research workflows | `RunConfig.max_llm_calls` was set below the workflow's normal step count. | Inspect p99 healthy span counts in Cloud Trace first, then set `max_llm_calls` ~1.5x above normal multi-step depth. |
 
 ## 9. Clean up
 
 ```bash
 ./tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting/cleanup.sh
-```
-
-If you deployed any services live, delete them:
-```bash
-# Disable local telemetry
 adk telemetry disable
 ```
 
 ## 10. Exam traps
 
-- **Generic APM is not enough:** The exam often tests whether you understand that standard HTTP monitoring is insufficient for agents. You must use Agent-aware tracing (like ADK's OpenTelemetry integration) to see tool calls and loops.
-- **Latency Attribution:** A common scenario describes a slow agent. The correct troubleshooting step is to use Cloud Trace to determine if the latency is in the *LLM generation phase* or the *tool execution phase*.
-- **Evaluation in Production:** Replaying recorded traces as regression tests is done using `adk conformance record` and `adk conformance test`.
+- **Always Inspect Cloud Trace *Before* Changing Models:** When an exam question says *"An agent takes 20 seconds per turn; what should you do FIRST?"*, the right first step is **inspecting distributed OpenTelemetry spans in Cloud Trace** (`trace_call_llm` vs `trace_tool_call`), NOT blindly downgrading models or adding GPUs.
+- **HIPAA Telemetry != Turning Off Observability:** Never disable Cloud Trace or Cloud Monitoring to pass a HIPAA audit. Keep distributed tracing enabled with **`ContentCapturingMode.NO_CONTENT`** (and VPC-SC + CMEK log buckets where required) so SREs retain full latency/error visibility without storing PHI.
+- **Cloud Trace vs. Cloud Monitoring:** Use **Cloud Trace** to debug per-request span causality and loops; use **Cloud Monitoring** (metrics) for fleet-wide p95 latency, token burn rate, and quota alerting (because traces may be sampled).
 
 ## 11. Check yourself
 
 <details>
-<summary>1. Your agent is taking 30 seconds to respond, but sometimes it takes 2 seconds. The LLM latency is consistently ~2 seconds. What is the most likely cause, and how do you verify it?</summary>
-The agent is likely entering a reasoning loop, retrying a failing tool repeatedly. You verify this by inspecting the trace in Cloud Trace and looking for multiple sequential `trace_tool_call` spans.
+<summary>1. Cloud Trace shows a single turn containing 14 sequential pairs of `trace_call_llm` (350 ms) and `trace_tool_call` (`ERROR`, 150 ms). What is happening, and which ADK classes stop it?</summary>
+The agent is stuck in a tool-error reasoning loop. Configure `ReflectAndRetryToolPlugin(max_retries=2)` to bound tool self-correction retries and `RunConfig(max_llm_calls=...)` (or `LoopAgent(max_iterations=...)`) as a hard circuit breaker.
 </details>
 
 <details>
-<summary>2. You want to ensure that a new prompt update doesn't break existing successful agent interactions. What ADK feature should you use?</summary>
-Use `adk conformance record` to capture golden interactions, and `adk conformance test` to run regression tests against those recordings before deploying.
+<summary>2. How do you preserve OpenTelemetry latency and token-count spans in a HIPAA healthcare agent while preventing patient PHI from being stored in Cloud Trace or Cloud Logging?</summary>
+Configure `RunConfig(telemetry=TelemetryConfig(capture_message_content=ContentCapturingMode.NO_CONTENT))` so ADK exports span durations, status codes, and token counters without capturing raw message or tool payloads.
 </details>
 
 <details>
-<summary>3. Which ADK deployment flag automatically instruments your agent for Google Cloud Observability?</summary>
-`--otel_to_cloud`
+<summary>3. Which exact three IAM roles follow least privilege for exporting ADK OpenTelemetry traces, logs, and metrics from a dedicated runtime Service Account?</summary>
+`roles/cloudtrace.agent`, `roles/logging.logWriter`, and `roles/monitoring.metricWriter`.
 </details>

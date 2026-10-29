@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
-"""Lab 19 — GKE Inference Gateway, Open-Weight GPU Serving & Agent Sandbox.
+"""Lab 19 — Regulated / Air-Gapped GKE Inference Gateway, Open-Weight SLMs & Sandbox.
 
 Demonstrates:
-1. Architectural limitations of Agent Runtime vs when GKE is required.
+1. Balanced runtime selection: Managed Agent Runtime vs. when regulated/HIPAA
+   air-gapped data residency, self-hosted open-weight SLMs, or gVisor sandboxes
+   mandate GKE (``adk deploy gke``).
 2. ADK 2.9.0 ``GkeCodeExecutor`` in ``sandbox`` mode (gVisor ``runsc`` +
    ``sandbox_gateway_name`` + ``sandbox_template``) vs ``job`` mode.
-3. Self-hosted open-weight models (``DEFAULT_OSS_MOE_MODEL`` / ``DEFAULT_OSS_MODEL``)
-   paired with ``FallbackModel`` for resilient GKE -> Vertex AI SaaS failover.
-4. Deterministic simulation of **GKE Inference Gateway** Endpoint Picker (EPP):
+3. Self-hosted open-weight SLMs (``DEFAULT_OSS_MOE_MODEL`` / ``DEFAULT_OSS_MODEL``)
+   in two failover postures:
+   - Hybrid GKE -> Vertex AI SaaS ``FallbackModel`` (non-air-gapped workloads)
+   - Strict HIPAA / Air-Gapped ``FallbackModel`` (self-hosted open-weight ONLY;
+     zero SaaS egress)
+4. GKE Workload Identity Federation least-privilege IAM audit for GCS FUSE model
+   weight streaming (``roles/storage.objectViewer`` on model bucket vs node-level SA).
+5. Deterministic simulation of **GKE Inference Gateway** Endpoint Picker (EPP):
    KV-cache saturation routing, prefix-cache affinity, LoRA adapter matching,
    and criticality-based load shedding (``Critical`` vs ``Sheddable``).
 """
@@ -101,7 +108,7 @@ def build_gke_job_executor() -> GkeCodeExecutor:
 
 
 def build_hybrid_gke_agent() -> tuple[LlmAgent, FallbackModel]:
-    """Construct an ADK agent backed by self-hosted Gemma 4 on GKE with SaaS fallback."""
+    """Construct a hybrid ADK agent backed by self-hosted Gemma 4 on GKE with SaaS fallback."""
     primary_gke_oss = Gemma(model=DEFAULT_OSS_MOE_MODEL)
     secondary_dense_oss = LiteLlm(model=f"openai/{DEFAULT_OSS_MODEL}")
     fallback_chain = FallbackModel(
@@ -119,6 +126,38 @@ def build_hybrid_gke_agent() -> tuple[LlmAgent, FallbackModel]:
         code_executor=sandbox_exec,
     )
     return agent, fallback_chain
+
+
+def build_airgapped_hipaa_fallback_chain() -> FallbackModel:
+    """Build a strict air-gapped HIPAA FallbackModel that NEVER fails over to public SaaS."""
+    primary_moe_slm = Gemma(model=DEFAULT_OSS_MOE_MODEL)
+    secondary_dense_slm = LiteLlm(model=f"openai/{DEFAULT_OSS_MODEL}")
+    return FallbackModel(models=[primary_moe_slm, secondary_dense_slm])
+
+
+def audit_gke_workload_identity_iam(
+    *,
+    ksa_annotation_gsa: str | None,
+    granted_bucket_roles: set[str],
+    uses_node_default_compute_sa: bool = False,
+) -> tuple[bool, list[str]]:
+    """Verify GKE Workload Identity Federation least-privilege IAM for vLLM weight streaming."""
+    issues: list[str] = []
+    if uses_node_default_compute_sa or not ksa_annotation_gsa:
+        issues.append(
+            "MISSING_WORKLOAD_IDENTITY: Bind Kubernetes SA via `iam.gke.io/gcp-service-account` "
+            "instead of inheriting the GKE node's Compute Engine default SA."
+        )
+    if ksa_annotation_gsa and "-compute@developer.gserviceaccount.com" in ksa_annotation_gsa:
+        issues.append("DEFAULT_COMPUTE_SA_FORBIDDEN: Use a dedicated model-loader GSA.")
+    if "roles/storage.admin" in granted_bucket_roles or "roles/editor" in granted_bucket_roles:
+        issues.append(
+            "OVERPRIVILEGED_MODEL_BUCKET_ROLE: Use bucket-scoped `roles/storage.objectViewer` "
+            "for read-only GCS FUSE model weight streaming."
+        )
+    if "roles/storage.objectViewer" not in granted_bucket_roles:
+        issues.append("MISSING_OBJECT_VIEWER: Grant `roles/storage.objectViewer` on the weights bucket.")
+    return (len(issues) == 0), issues
 
 
 def select_inference_pool_pod(
@@ -170,19 +209,22 @@ def evaluate_runtime_choice(
     requires_open_weight_gpus: bool = False,
     requires_gvisor_agent_sandbox: bool = False,
     requires_inference_gateway_kv_routing: bool = False,
+    strict_airgapped_no_saas_residency: bool = False,
     requires_scale_to_zero_http: bool = False,
 ) -> tuple[str, str]:
-    """Determine when Agent Runtime hits architectural limits and GKE is required."""
+    """Determine when Agent Runtime is optimal vs. when GKE or Cloud Run is required."""
     if (
         requires_open_weight_gpus
         or requires_gvisor_agent_sandbox
         or requires_inference_gateway_kv_routing
+        or strict_airgapped_no_saas_residency
     ):
         return (
             "gke",
             "GKE (`adk deploy gke`) is mandatory: Agent Runtime does not expose "
-            "custom GPU node pools for open-weight vLLM serving, GKE Inference Gateway "
-            "(`InferencePool` KV-cache routing), or gVisor `GkeCodeExecutor(executor_type='sandbox')`.",
+            "custom GPU node pools for air-gapped open-weight SLM vLLM serving, "
+            "GKE Inference Gateway (`InferencePool` KV-cache routing), or gVisor "
+            "`GkeCodeExecutor(executor_type='sandbox')`.",
         )
     if requires_scale_to_zero_http:
         return (
@@ -199,23 +241,27 @@ def evaluate_runtime_choice(
 
 def run_offline() -> LabReport:
     report = LabReport(
-        title="Lab 19 — GKE Inference Gateway, Open-Weight GPU Serving & Agent Sandbox"
+        title="Lab 19 — Regulated GKE Inference Gateway, Open-Weight SLMs & Agent Sandbox"
     )
-    banner("Lab 19 — GKE Inference Gateway, Open-Weight GPUs & Agent Sandbox (Offline)")
+    banner("Lab 19 — Regulated GKE Open-Weight SLMs, Inference Gateway & Sandbox (Offline)")
 
-    section("1. Agent Runtime Limitations vs. When to Choose GKE")
+    section("1. Regulated Air-Gapped Residency vs. Managed Agent Runtime")
     target, reason = evaluate_runtime_choice(
+        strict_airgapped_no_saas_residency=True,
         requires_open_weight_gpus=True,
-        requires_gvisor_agent_sandbox=True,
-        requires_inference_gateway_kv_routing=True,
     )
+    managed_target, _ = evaluate_runtime_choice()
     kv_table(
         {
-            "Selected Target": target,
+            "Air-Gapped / Open-Weight GPU Target": target,
+            "Standard Managed SaaS Agent Target": managed_target,
             "Rationale": reason,
         }
     )
-    report.check("Runtime target is GKE when GPUs/Sandbox/IGW required", target == "gke")
+    report.check(
+        "Balanced selector picks GKE for air-gapped SLMs and Agent Runtime for standard SaaS",
+        target == "gke" and managed_target == "agent_engine",
+    )
 
     section("2. Agent Sandbox on GKE (GkeCodeExecutor: 'sandbox' vs 'job')")
     sandbox_exec = build_gke_sandbox_executor()
@@ -235,18 +281,32 @@ def run_offline() -> LabReport:
         and sandbox_exec.sandbox_template == "python-gvisor-runtime-template",
     )
 
-    section("3. Open-Weight GPU Models (Gemma 4) + SaaS Fallback Chain")
-    agent, fallback = build_hybrid_gke_agent()
+    section("3. Hybrid vs. Strict Air-Gapped HIPAA Open-Weight Chains + Workload Identity")
+    agent, hybrid_fallback = build_hybrid_gke_agent()
+    airgapped_fallback = build_airgapped_hipaa_fallback_chain()
+    wi_ok, wi_issues = audit_gke_workload_identity_iam(
+        ksa_annotation_gsa="vllm-weights-reader@hipaa-gke-prod.iam.gserviceaccount.com",
+        granted_bucket_roles={"roles/storage.objectViewer"},
+        uses_node_default_compute_sa=False,
+    )
     kv_table(
         {
-            "Primary Self-Hosted MoE Model": DEFAULT_OSS_MOE_MODEL,
-            "Secondary Self-Hosted Dense Model": DEFAULT_OSS_MODEL,
-            "SaaS Failover Model": DEFAULT_AGENT_MODEL,
-            "Fallback Chain Length": str(len(fallback.models)),
+            "Primary Self-Hosted MoE SLM": DEFAULT_OSS_MOE_MODEL,
+            "Secondary Self-Hosted Dense SLM": DEFAULT_OSS_MODEL,
+            "Hybrid Chain Length (includes SaaS)": str(len(hybrid_fallback.models)),
+            "Air-Gapped HIPAA Chain Length (OSS only)": str(len(airgapped_fallback.models)),
+            "Workload Identity Least-Privilege OK": str(wi_ok),
             "Attached Code Executor": type(agent.code_executor).__name__,
         }
     )
-    report.check("FallbackModel chains 3 models", len(fallback.models) == 3)
+    report.check(
+        "Air-gapped HIPAA FallbackModel excludes public SaaS & enforces Workload Identity",
+        len(hybrid_fallback.models) == 3
+        and len(airgapped_fallback.models) == 2
+        and DEFAULT_AGENT_MODEL not in airgapped_fallback.models
+        and wi_ok is True
+        and wi_issues == [],
+    )
 
     section("4. GKE Inference Gateway (Endpoint Picker KV-Cache & LoRA Simulation)")
     pool = [
@@ -264,18 +324,18 @@ def run_offline() -> LabReport:
             kv_cache_saturation=0.45,
             waiting_queue_depth=1,
             cached_prefixes=("agent-system-prefix-v1",),
-            loaded_lora_adapters=("finance-risk-lora",),
+            loaded_lora_adapters=("clinical-hipaa-lora",),
         ),
     ]
 
     live_req = InferenceRequest(
         request_id="turn-42",
         prefix_hash="agent-system-prefix-v1",
-        lora_adapter="finance-risk-lora",
+        lora_adapter="clinical-hipaa-lora",
         criticality="Critical",
     )
     selected_pod, route_reason = select_inference_pool_pod(pool, live_req)
-    step(1, f"Critical Agent Turn routed to: {selected_pod} -> {route_reason}")
+    step(1, f"Critical Clinical Turn routed to: {selected_pod} -> {route_reason}")
 
     saturated_pool = [
         VllmGpuPod(
@@ -313,9 +373,9 @@ def run_offline() -> LabReport:
         shed_pod is None,
     )
     exam_note(
-        "GKE Inference Gateway routes multi-turn agent calls using real-time GPU KV-cache "
-        "metrics, prefix-cache affinity, and LoRA residency, while shedding Sheddable batch "
-        "traffic during saturation spikes to protect Critical interactive agent turns."
+        "Default to Agent Runtime (`adk deploy agent_engine`) unless the scenario requires "
+        "strict VPC/air-gapped open-weight SLM residency on GPUs (`Gemma 4`), GKE Inference "
+        "Gateway (`InferencePool` KV-cache & LoRA affinity), or gVisor `GkeCodeExecutor(executor_type='sandbox')`."
     )
     report.summary()
     return report

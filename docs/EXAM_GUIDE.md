@@ -1,4 +1,4 @@
-# Exam guide — objectives, weights, and where each is covered
+# Exam guide — objectives, weights, Beta exam reality, and lab mapping
 
 > [!IMPORTANT]
 > **Personal, unofficial repository.** This is a personal study project. It is **not
@@ -11,9 +11,39 @@
 
 [guide]: https://services.google.com/fh/files/misc/professional_agentic_architect_exam_guide_english.pdf
 
-The raw text extracted from the official PDF is preserved verbatim in
+The raw text extracted from all 4 pages of the official PDF is preserved verbatim in
 [`exam_guide_extracted.txt`](exam_guide_extracted.txt) so you can diff this
 mapping against the source yourself.
+
+---
+
+## Exam format, timeline, and test-taking UI
+
+> [!NOTE]
+> **Beta Exam Context vs. Mid-November GA Launch**:
+> - **Source of Practical Insights**: The real-world exam emphases throughout this repository are calibrated against both the **official 4-page Exam Guide** and extensive **Beta exam** feedback.
+> - **GA Launch Timeline**: The **Generally Available (GA) exam launches in mid-November**.
+> - **Question Count & Format**: The **Beta exam contains ~80 multiple-choice and multiple-select questions** (3-hour window). **The question count will be lesser for the GA exam** (typically ~50–60 questions in a 2-hour window).
+> - **Delivery Method**: Offered both **online-proctored** (remote) and **onsite-proctored** (at an authorized testing center).
+> - **Exam UI Tools**: Both **Mark for Review** and **Strike-through** are enabled and work smoothly. Use **Strike-through** aggressively on long scenario options to cross out distractors that violate least-privilege IAM (e.g., `roles/editor`, static JSON keys, `UnsafeLocalCodeExecutor`) or protocol boundaries (e.g., using MCP for agent-to-agent delegation).
+
+---
+
+## What Beta exam takers actually saw (and how to adjust your prep)
+
+While the five official section weights remain **13% / 17% / 33% / 22% / 15%**, several cross-cutting themes appear across *every* section of the exam:
+
+1. **Heavy IAM, Least-Privilege Roles & Identity Focus (~30–35% of questions)**:
+   - Expect roughly a third of questions across Sections 1, 2, 3, 4, and 5 to hinge on choosing the **narrowest predefined IAM role** (`roles/aiplatform.user`, `roles/discoveryengine.viewer`, `roles/bigquery.jobUser` + `roles/bigquery.dataViewer`, `roles/secretmanager.secretAccessor`, `roles/run.invoker`, `roles/modelarmor.user`), **safe credential provisioning via Agent Identity** (zero static Service Account JSON keys), **Principal Access Boundary (PAB)** blast-radius ceilings (`Effective Access = IAM Allow ∩ PAB`), **Gemini Enterprise connector authentication** (ACL-sync Service Account + Workforce Identity Federation vs. 3-legged OAuth 2.0 user consent), and **cross-project A2A/MCP invocation**.
+2. **Customer Support Agents & Regulated Industry Compliance (Especially HIPAA)**:
+   - Many stems frame architectures around **enterprise customer support agents** and **regulated industries (healthcare/HIPAA, banking/PCI)**. Know how to combine **Sensitive Data Protection (SDP)** de-identification templates inside **Model Armor**, disable raw payload logging via `ContentCapturingMode`, enforce VPC Service Controls + CMEK, and gate write actions behind deterministic flows or HITL approvals.
+   - **Low unrelated GCP trivia**: Unlike the general Professional Cloud Architect exam, there is very little trivia on unrelated GCP services (e.g., Cloud CDN, Cloud Interconnect BGP, Dataproc Hadoop tuning). Focus strictly on the **28 tools in scope** and how they secure, ground, evaluate, and run agents.
+3. **Antigravity Customization Files (`hooks.json`, `SKILL.md`, `GEMINI.md`), Agents CLI & Code Mender**:
+   - Do not treat Section 2 (17%) as generic "AI coding assistant" theory. Know the exact roles of **`hooks.json`** (`PreToolUse`, `PostToolUse`, `Stop`), **`SKILL.md` / `skills.json`** (L1/L2/L3 progressive disclosure), **`GEMINI.md` / `AGENTS.md`** vs **`rules/*.md`** (`glob` / `model_decision` triggers), **`plugin.json`**, **`mcp_config.json`**, **`adk` / `agents-cli`** (including **agent mode vs. human mode** and `adk optimize`), and **Code Mender** in GKE gVisor sandboxes.
+4. **GECX Deterministic vs. Probabilistic Flows, RAG Reranking API, and Eval Rubric vs. Metric**:
+   - Know when **CX Agent Studio (`GECX`)** requires **deterministic Flows/Pages/Transition Routes** vs **probabilistic Generative Playbooks** vs **Hybrid orchestration**.
+   - Know two-stage RAG (**`RAG Engine` + Discovery Engine `RankServiceClient` cross-encoder reranking** vs **Vector Search 1.0** vs **Agent Search**).
+   - Know **ADK Eval Rubrics** (`Rubric` / `RubricsBasedCriterion` reference-free autoraters) vs **Metrics** (`ToolTrajectoryCriterion`, `final_response_match_v2`) and local `adk eval` (`evalset`) vs cloud **Agent Platform Gen AI Evaluation Service**.
 
 ---
 
@@ -26,14 +56,6 @@ mapping against the source yourself.
 > security, and scalability. This individual has deep experience utilizing large
 > language models (LLMs), applying agent design patterns, writing code, and
 > integrating data sources in Google Cloud."*
-
-Read that carefully. Three phrases set the difficulty:
-
-- **"designs and manages"** — you are tested on judgement, not just syntax.
-- **"reliability, performance, cost, security, and scalability"** — every scenario
-  question hides a trade-off along one of these five axes.
-- **"writing code"** — this is not a whiteboard-only architect exam. One third of
-  it is building agents in code.
 
 ---
 
@@ -49,18 +71,13 @@ Read that carefully. Three phrases set the difficulty:
 
 ```mermaid
 pie showData
-    title Exam weight by section
+    title Official exam weight by section
     "S3 Developing custom agents" : 33
     "S4 Evaluating and deploying" : 22
     "S2 Coding agents" : 17
     "S5 Securing and governing" : 15
     "S1 Low-code tools" : 13
 ```
-
-> [!TIP]
-> **Sections 3 and 4 are 55% of the exam between them.** If your time is limited,
-> master ADK (Track 3) and evaluation/deployment (Track 4) before anything else.
-> Section 1 is the lightest at 13% — do not over-invest in console click-paths.
 
 ---
 
@@ -75,8 +92,7 @@ pie showData
 >   and chain-of-thought) to guide agent behavior (e.g., Agent Designer and CX
 >   Agent Studio)
 
-Covered by [Lab 01](../tracks/01_low_code_agents/lab_01_agent_designer_workflows)
-and [Lab 02](../tracks/01_low_code_agents/lab_02_cx_agent_studio_state).
+Covered by [Lab 01](../tracks/01_low_code_agents/lab_01_agent_designer_workflows) (Agent Designer prompt templates, customer support & HIPAA boundary rules, probabilistic playbooks) and [Lab 02](../tracks/01_low_code_agents/lab_02_cx_agent_studio_state) (GECX / CX Agent Studio deterministic Flows, Pages, Form parameters, Transition Routes, `sys.no-match-2` Event Handlers, and Hybrid Playbook + Flow customer support architectures).
 
 ### 1.2 Connecting enterprise data to Gemini Enterprise
 
@@ -85,7 +101,7 @@ and [Lab 02](../tracks/01_low_code_agents/lab_02_cx_agent_studio_state).
 > - Ingesting and processing unstructured multimodal data (e.g., videos, audio,
 >   and images) into the agentic workflow
 
-Covered by [Lab 03](../tracks/01_low_code_agents/lab_03_enterprise_data_and_multimodal).
+Covered by [Lab 03](../tracks/01_low_code_agents/lab_03_enterprise_data_and_multimodal) (Gemini Enterprise `GEApp` connector authentication — ACL-sync Service Account + Workforce Identity Federation vs. 3-legged OAuth 2.0 via Auth Manager / `IAMConnectorCredentialsServiceClient`, HIPAA data-store controls, and native multimodal ingestion).
 
 ---
 
@@ -100,8 +116,7 @@ Covered by [Lab 03](../tracks/01_low_code_agents/lab_03_enterprise_data_and_mult
 > - Using coding agents to refactor source code, optimize execution runtimes, and
 >   patch application-layer vulnerabilities
 
-Covered by [Lab 04](../tracks/02_coding_agents/lab_04_mcp_and_tooling)
-and [Lab 05](../tracks/02_coding_agents/lab_05_secure_sandboxes).
+Covered by [Lab 04](../tracks/02_coding_agents/lab_04_mcp_and_tooling) (`mcp_config.json`, Stdio vs SSE MCP servers, Antigravity & Claude Code on Vertex AI with least-privilege IAM) and [Lab 05](../tracks/02_coding_agents/lab_05_secure_sandboxes) (GKE Agent Sandbox `gVisor` vs `job`, Cloud Workstations VPC-SC developer sandboxes, Antigravity OS sandbox, and autonomous vulnerability patching with **Code Mender**).
 
 ### 2.2 Customizing coding agents for enterprise workflows
 
@@ -109,13 +124,11 @@ and [Lab 05](../tracks/02_coding_agents/lab_05_secure_sandboxes).
 > - Augmenting Antigravity with Agents CLI to build, scale, govern, and optimize
 >   deployed agents
 
-Covered by [Lab 06](../tracks/02_coding_agents/lab_06_antigravity_customization).
+Covered by [Lab 06](../tracks/02_coding_agents/lab_06_antigravity_customization) (`hooks.json`, `SKILL.md` & `skills.json`, `GEMINI.md` / `AGENTS.md` vs `rules/*.md`, `plugin.json`, subagent isolation, Antigravity SDK `policy` 9-level precedence, and `adk` / `agents-cli` agent vs. human mode + `adk optimize`).
 
 ---
 
 ## Section 3 — Developing custom agents (~33%)
-
-> The largest section. Six labs.
 
 ### 3.1 Designing and building agentic workflows in code
 
@@ -129,10 +142,7 @@ Covered by [Lab 06](../tracks/02_coding_agents/lab_06_antigravity_customization)
 >   sessions)
 > - Configuring skills using Agents CLI (e.g., plugins and agent vs. human mode)
 
-Covered by [Lab 07](../tracks/03_custom_agents/lab_07_model_selection),
-[Lab 08](../tracks/03_custom_agents/lab_08_adk_fundamentals),
-[Lab 09](../tracks/03_custom_agents/lab_09_sessions_and_memory),
-[Lab 10](../tracks/03_custom_agents/lab_10_tools_and_skills).
+Covered by [Lab 07](../tracks/03_custom_agents/lab_07_model_selection), [Lab 08](../tracks/03_custom_agents/lab_08_adk_fundamentals), [Lab 09](../tracks/03_custom_agents/lab_09_sessions_and_memory), and [Lab 10](../tracks/03_custom_agents/lab_10_tools_and_skills).
 
 ### 3.2 Integrating enterprise domain knowledge
 
@@ -146,8 +156,7 @@ Covered by [Lab 07](../tracks/03_custom_agents/lab_07_model_selection),
 >   managed databases, API integrations, and MCP server that connects agents to
 >   third-party SaaS tools and remote servers)
 
-Covered by [Lab 10](../tracks/03_custom_agents/lab_10_tools_and_skills)
-and [Lab 11](../tracks/03_custom_agents/lab_11_rag_and_retrieval).
+Covered by [Lab 10](../tracks/03_custom_agents/lab_10_tools_and_skills) and [Lab 11](../tracks/03_custom_agents/lab_11_rag_and_retrieval) (`RAG Engine`, `gemini-embedding-2`, Discovery Engine `RankServiceClient` cross-encoder reranking, Vector Search 1.0, Agent Search, and least-privilege RAG/data IAM).
 
 ### 3.3 Orchestrating and coordinating agentic workflows
 
@@ -156,7 +165,7 @@ and [Lab 11](../tracks/03_custom_agents/lab_11_rag_and_retrieval).
 >   agents, sequential agents, and graph workflow) using Google Cloud tools (e.g.,
 >   Agent Identity, Agent Registry, Agent Runtime, and agent policies)
 
-Covered by [Lab 12](../tracks/03_custom_agents/lab_12_multi_agent_and_a2a).
+Covered by [Lab 08](../tracks/03_custom_agents/lab_08_adk_fundamentals) and [Lab 12](../tracks/03_custom_agents/lab_12_multi_agent_and_a2a) (multi-agent latency trade-offs, cross-project A2A with `RemoteA2aAgent` + `AgentRegistry` + `roles/run.invoker` OIDC auth, and MCP vs A2A).
 
 ---
 
@@ -173,7 +182,7 @@ Covered by [Lab 12](../tracks/03_custom_agents/lab_12_multi_agent_and_a2a).
 > - Evaluating an agentic system against a golden dataset to assess agent response
 >   and retrieval quality (e.g., using ADK)
 
-Covered by [Lab 13](../tracks/04_evaluate_and_deploy/lab_13_agent_evaluation).
+Covered by [Lab 13](../tracks/04_evaluate_and_deploy/lab_13_agent_evaluation) (Rubric vs. Metric evaluation, `.evalset.json` with `adk eval`, and cloud-scale `vertexai.evaluation.EvalTask` in the Agent Platform Gen AI Evaluation Service).
 
 ### 4.2 Deploying and scaling production workloads
 
@@ -184,9 +193,7 @@ Covered by [Lab 13](../tracks/04_evaluate_and_deploy/lab_13_agent_evaluation).
 > - Monitoring and optimizing agents for performance, reliability, and cost (e.g.,
 >   identify logic errors, latency bottlenecks, and hallucinations)
 
-Covered by [Lab 14](../tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes),
-[Lab 15](../tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting),
-and [Lab 19](../tracks/04_evaluate_and_deploy/lab_19_gke_inference_gateway_and_gpus).
+Covered by [Lab 14](../tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes), [Lab 15](../tracks/04_evaluate_and_deploy/lab_15_observability_and_troubleshooting), and [Lab 19](../tracks/04_evaluate_and_deploy/lab_19_gke_inference_gateway_and_gpus).
 
 ---
 
@@ -201,9 +208,7 @@ and [Lab 19](../tracks/04_evaluate_and_deploy/lab_19_gke_inference_gateway_and_g
 > - Designing and configuring agentic governance and policy enforcement (e.g.,
 >   Agent Registry and Model Armor)
 
-Covered by [Lab 16](../tracks/05_secure_and_govern/lab_16_agent_identity_and_auth),
-[Lab 18](../tracks/05_secure_and_govern/lab_18_governance_gateway_registry),
-and [Lab 20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense).
+Covered by [Lab 16](../tracks/05_secure_and_govern/lab_16_agent_identity_and_auth), [Lab 18](../tracks/05_secure_and_govern/lab_18_governance_gateway_registry), and [Lab 20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense).
 
 ### 5.2 Implementing secure agent behavior and execution
 
@@ -212,68 +217,57 @@ and [Lab 20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense).
 > - Configuring secure access to data and identity propagation (e.g., Agent Gateway
 >   and Agent Registry)
 
-Covered by [Lab 17](../tracks/05_secure_and_govern/lab_17_model_armor_and_hitl),
-[Lab 18](../tracks/05_secure_and_govern/lab_18_governance_gateway_registry),
-and [Lab 20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense).
+Covered by [Lab 17](../tracks/05_secure_and_govern/lab_17_model_armor_and_hitl) (Model Armor + Sensitive Data Protection `SdpAdvancedConfig` de-identification + HITL), [Lab 18](../tracks/05_secure_and_govern/lab_18_governance_gateway_registry), and [Lab 20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense) (HIPAA/regulated customer support defense-in-depth).
 
 ---
 
-## Tools in scope — and the code behind each name
+## All 28 tools in scope — and the code behind each name
 
-The guide lists 26 tools, plus architectural capabilities implied by the sub-objectives (such as **Code Mender** for Objective 2.1 vulnerability patching and **GKE Inference Gateway** for Objective 4.2 GKE serving). Product names changed in this rebrand, so the left column is exam vocabulary and the right column is what you actually import or run. Verification status for every row is in [`VERIFIED_FACTS.md`](VERIFIED_FACTS.md).
+Page 4 of the official exam guide lists **28 tools in scope** (plus architectural capabilities directly implied by the sub-objectives, such as **Code Mender** for Objective 2.1 and **GKE Inference Gateway** for Objective 4.2). Verification status for every row is in [`VERIFIED_FACTS.md`](VERIFIED_FACTS.md).
 
-| Exam name | What it actually is |
-| :--- | :--- |
-| Agent Development Kit (ADK) | `pip install google-adk` (2.9.0) |
-| Agent evaluation | `google.adk.evaluation.AgentEvaluator`, `adk eval` |
-| **Agent Gateway** | Policy-enforcing ingress/egress proxy for MCP & A2A traffic — see Labs 18 & 20 |
-| Agent Identity | `google.adk.integrations.agent_identity` + Principal Access Boundary (PAB) |
-| Agent Registry | `google.adk.integrations.agent_registry.AgentRegistry` |
-| Agent Retrieval and Vector Search 1.0 | Vector Search + `VertexAiRagMemoryService` |
-| Agent Runtime *(formerly Agent Engine)* | `adk deploy agent_engine` |
-| Agent Search *(formerly Vertex AI Search)* | `google.adk.tools.VertexAiSearchTool` |
-| Agentic protocols (A2A, MCP) | `google.adk.a2a`, `google.adk.tools.MCPToolset` |
-| Agents CLI in Agent Platform | ⚠️ see Lab 06 — `adk` CLI is the verified stand-in |
-| Antigravity (CLI, SDK, App) | coding-agent platform — Track 2 |
-| **Code Mender** | Autonomous AI vulnerability-patching & root-cause repair agent (Objective 2.1) — Labs 05 & 06 |
-| Auth Manager (OAuth 2.0) | `google.adk.auth` (`OAuth2Auth`, exchanger, refresher) |
-| BigQuery | `google.adk.tools.bigquery.BigQueryToolset` |
-| Cloud Run | `adk deploy cloud_run`, `CloudRunSandboxCodeExecutor` |
-| Cloud SQL | `DatabaseSessionService` backend |
-| Cloud Storage | `GcsArtifactService`, `integrations.gcs.GCSToolset` |
-| Firestore | `google.adk.integrations.firestore` |
-| **Gemini Enterprise / Gemini Enterprise App (`GEApp`)** | **Gemini Enterprise** is the umbrella brand; **Gemini Enterprise App (`GEApp`)** is the enterprise search/assistant app (distinct from **Agent Platform / `GEAP`**) — Track 1 |
-| Gemini LLMs | see the verified model catalog in `common/models.py` |
-| Google Cloud Observability | `google.adk.telemetry`, `adk telemetry` (Cloud Logging & Cloud Trace) |
-| GKE (Agent Sandbox & Inference Gateway) | `adk deploy gke`, `GkeCodeExecutor`, `InferencePool` / `InferenceModel` — Labs 05, 14, 19 |
-| Memorystore for Redis | `google.adk.integrations.redis.RedisSessionService` |
-| Model Armor | `google.adk.integrations.model_armor.ModelArmorPlugin` |
-| MCP servers | `MCPToolset`, `RemoteMcpServer`, `mcp` 2.2.0 |
-| Model Garden (Open-Weight GPUs) | `google.adk.models.Gemma`, `LiteLlm`, `Gemma3Ollama`, GKE vLLM — Labs 07 & 19 |
-| RAG Engine | `VertexAiRagMemoryService` — Lab 11 |
-| Sensitive Data Protection | `google-cloud-dlp` + Model Armor SDP templates — Labs 17 & 20 |
-| Skill Registry | `google.adk.skills.SkillRegistry`, `GCPSkillRegistry` |
+| # | Official Exam Guide Name | Verified Implementation & Lab Mapping |
+| :---: | :--- | :--- |
+| 1 | Agent Development Kit (ADK) | `google-adk==2.9.0` — Labs 08–20 |
+| 2 | Agent evaluation | `google.adk.evaluation` (`AgentEvaluator`, `Rubric`, `ToolTrajectoryCriterion`), `adk eval`, `vertexai.evaluation.EvalTask` — Lab 13 |
+| 3 | Agent Gateway | Policy-enforcing ingress/egress proxy for MCP & A2A traffic (+ perimeter Model Armor & OAuth propagation) — Labs 17, 18, 20 |
+| 4 | Agent Identity | `google.adk.integrations.agent_identity` (`GcpAuthProvider`), `AuthProviderCredentialsServiceClient`, Principal Access Boundary (PAB) — Labs 16, 20 |
+| 5 | Agent Registry | `google.adk.integrations.agent_registry.AgentRegistry` (`get_remote_a2a_agent`, `get_mcp_toolset`) — Labs 12, 18, 20 |
+| 6 | Agent Retrieval and Vector Search 1.0 | Custom-embedding HNSW/ScaNN ANN index + `VertexAiRagMemoryService` — Lab 11 |
+| 7 | Agent Runtime *(formerly Agent Engine)* | Managed ADK runtime (`adk deploy agent_engine`) with native `VertexAiSessionService` & `VertexAiMemoryBankService` — Labs 09, 14 |
+| 8 | Agent Search *(formerly Vertex AI Search)* | `VertexAiSearchTool`, `DiscoveryEngineSearchTool` with native Document-Level ACLs — Labs 03, 11 |
+| 9 | Agentic protocols (A2A, MCP) | `RemoteA2aAgent`, `A2aRemoteAgentConfig`, `MCPToolset`, `RemoteMcpServer` — Labs 04, 12 |
+| 10 | Agents CLI in Agent Platform | `adk` CLI (`create`, `eval`, `deploy`, `optimize`, `conformance`) in human vs. headless agent mode — Labs 06, 10, 13, 14, 15 |
+| 11 | Antigravity (CLI, SDK, App) | `hooks.json`, `SKILL.md`, `GEMINI.md`, `rules/*.md`, `plugin.json`, `mcp_config.json`, SDK `policy` — Labs 04, 05, 06 |
+| 12 | Auth Manager (OAuth 2.0) | `google.adk.auth` (`OAuth2Auth`), `IAMConnectorCredentialsServiceClient` (3LO consent & token refresh) — Labs 03, 16 |
+| 13 | BigQuery | `BigQueryToolset` (`roles/bigquery.jobUser` + `roles/bigquery.dataViewer`) — Labs 10, 16 |
+| 14 | Cloud Run | `adk deploy cloud_run`, `CloudRunSandboxCodeExecutor`, cross-project `roles/run.invoker` — Labs 05, 12, 14 |
+| 15 | Cloud SQL | `DatabaseSessionService` backend; IAM DB auth (`roles/cloudsql.instanceUser`) — Labs 09, 14 |
+| 16 | Cloud Storage | `GcsArtifactService`, `GCSToolset`, multimodal `gs://` URIs — Labs 03, 10 |
+| 17 | Firestore | `google.adk.integrations.firestore` — Lab 09 |
+| 18 | Gemini Enterprise | Umbrella brand + **Gemini Enterprise App (`GEApp`)** + **Agent Designer** + **CX Agent Studio (`GECX`)** — Labs 01, 02, 03 |
+| 19 | Gemini LLMs | `gemini-3.7-flash`, `gemini-2.5-pro`, `gemini-3.5-flash-lite`, `gemini-embedding-2` (`common/models.py`) — Lab 07 |
+| 20 | Google Cloud Observability | `google.adk.telemetry` (`ContentCapturingMode`, `trace_call_llm`, `trace_tool_call`) → Cloud Logging & Cloud Trace — Lab 15 |
+| 21 | Google Kubernetes Engine (GKE) | `adk deploy gke`, `GkeCodeExecutor(executor_type="sandbox")`, **GKE Inference Gateway** (`InferencePool`) — Labs 05, 14, 19 |
+| 22 | Memorystore for Redis | `RedisSessionService` (`RedisSessionServiceConfig` with `ttl_seconds`) — Labs 09, 14 |
+| 23 | Model Armor | `google.cloud.modelarmor_v1` + `ModelArmorPlugin(block_on_screening_failure=True)` — Labs 17, 20 |
+| 24 | Model Context Protocol (MCP) servers | `MCPToolset`, `RemoteMcpServer`, `mcp_config.json` — Labs 04, 10, 12 |
+| 25 | Model Garden | Open-weight `gemma-4-26b-a4b-it`, `gemma-4-31b-it`, `FallbackModel`, `LiteLlm` — Labs 07, 19 |
+| 26 | RAG Engine | `vertexai.preview.rag` (`RagCorpus`, `LayoutParserConfig`, `HybridSearch`) + `RankServiceClient` reranking — Lab 11 |
+| 27 | Sensitive Data Protection | `SdpAdvancedConfig(inspect_template=..., deidentify_template=...)` inside Model Armor & `google-cloud-dlp` — Labs 03, 17, 20 |
+| 28 | Skill Registry | `google.adk.skills.SkillRegistry`, `GCPSkillRegistry` (`L1/L2/L3` progressive disclosure) — Labs 06, 10 |
 
 ---
 
-## High-yield distinctions
-
-The exam is scenario-based. These are the pairs it most reliably forces you to
-separate. Each links to the lab that drills it.
+## High-yield exam distinctions
 
 | Distinction | Why it is tested | Lab |
 | :--- | :--- | :--- |
-| **Gemini Enterprise** vs. **Gemini Enterprise App (`GEApp`)** vs. **Agent Platform (`GEAP`)** | **Gemini Enterprise** is the umbrella brand; **Gemini Enterprise App (`GEApp`)** is the turn-key web app (often simply called "Gemini Enterprise" in scenarios); **GEAP** is the developer platform | [03](../tracks/01_low_code_agents/lab_03_enterprise_data_and_multimodal) |
-| Low-code state machine vs. code-first agent | Deterministic, auditable business process vs. open-ended reasoning | [02](../tracks/01_low_code_agents/lab_02_cx_agent_studio_state) |
-| **Code Mender** vs. general coding assistant | Automated CVE root-cause analysis, fuzzing, and sandboxed patch verification vs. interactive code generation | [05](../tracks/02_coding_agents/lab_05_secure_sandboxes) |
-| **GKE `sandbox` mode (gVisor) vs. `job` mode** | Kernel syscall interception (`runsc`) for untrusted LLM code vs. standard container sharing host kernel | [05](../tracks/02_coding_agents/lab_05_secure_sandboxes) |
-| MCP vs. A2A | Agent-to-**tool** (`MCPToolset`) vs. agent-to-**agent** (`A2aRemoteAgentConfig` + Agent Card) | [12](../tracks/03_custom_agents/lab_12_multi_agent_and_a2a) |
-| Session state vs. memory | Within one conversation vs. across conversations | [09](../tracks/03_custom_agents/lab_09_sessions_and_memory) |
-| Workflow agents (`SequentialAgent`) vs. Graph `Workflow` vs. LLM transfer | Sub-agent nesting compatibility vs. deterministic edge graph vs. dynamic model routing | [08](../tracks/03_custom_agents/lab_08_adk_fundamentals), [12](../tracks/03_custom_agents/lab_12_multi_agent_and_a2a) |
-| **Agent Runtime limitations vs. GKE** | Agent Runtime is zero-ops managed Python/ADK, but lacks custom GPU node pools, open-weight vLLM hosting, gVisor `GkeCodeExecutor`, and GKE Inference Gateway | [14](../tracks/04_evaluate_and_deploy/lab_14_deployment_runtimes), [19](../tracks/04_evaluate_and_deploy/lab_19_gke_inference_gateway_and_gpus) |
-| **GKE Inference Gateway vs. Agent Gateway vs. L7 LB** | KV-cache / prefix-cache & LoRA GPU routing (`InferencePool`) vs. agent authz/MCP/A2A policy governance vs. naive round-robin HTTP | [19](../tracks/04_evaluate_and_deploy/lab_19_gke_inference_gateway_and_gpus), [20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense) |
-| Tool-trajectory vs. final-response scoring | Did it invoke the right tools in order (`trajectory_evaluator`) vs. did it produce a matching text (`final_response_match_v2`) | [13](../tracks/04_evaluate_and_deploy/lab_13_agent_evaluation) |
-| PAB (`PrincipalAccessBoundary`) vs. IAM allow roles | Hard blast-radius ceiling (`IAM Allow ∩ PAB`) vs. additive permission grants | [16](../tracks/05_secure_and_govern/lab_16_agent_identity_and_auth), [20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense) |
-| LLM vs. SLM, SaaS vs. self-hosted on GKE GPUs | Capability vs. cost/latency vs. strict VPC-SC / air-gapped data residency (`gemma-4-26b-a4b-it`) | [07](../tracks/03_custom_agents/lab_07_model_selection), [19](../tracks/04_evaluate_and_deploy/lab_19_gke_inference_gateway_and_gpus) |
-| Native multimodal vs. preprocessing pipeline | Cross-modal reasoning vs. deterministic extraction | [03](../tracks/01_low_code_agents/lab_03_enterprise_data_and_multimodal) |
-| Fail-closed vs. fail-open guardrails | `block_on_screening_failure=True` vs `False` in `ModelArmorConfig` | [17](../tracks/05_secure_and_govern/lab_17_model_armor_and_hitl), [20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense) |
+| **GECX Deterministic Flow** vs. **Probabilistic Playbook** vs. **Hybrid** | Regulated step-by-step customer support (`Pages` + `Transition Routes` + `sys.no-match-2`) vs. open-ended generative troubleshooting vs. combining both | [01](../tracks/01_low_code_agents/lab_01_agent_designer_workflows), [02](../tracks/01_low_code_agents/lab_02_cx_agent_studio_state) |
+| **Connector ACL-Sync (SA + WIF)** vs. **3LO User Consent (Auth Manager)** | Background search indexing respecting document ACLs vs. real-time write actions executed on behalf of the human user | [03](../tracks/01_low_code_agents/lab_03_enterprise_data_and_multimodal), [16](../tracks/05_secure_and_govern/lab_16_agent_identity_and_auth) |
+| **`GEMINI.md` / `AGENTS.md`** vs. **`rules/*.md`** vs. **`SKILL.md`** vs. **`hooks.json`** | Always-on repo context vs. glob/model-triggered rules vs. L1/L2/L3 task bundles vs. deterministic shell enforcement (`PreToolUse`, `Stop`) | [06](../tracks/02_coding_agents/lab_06_antigravity_customization) |
+| **Code Mender + GKE `sandbox` (gVisor)** vs. **`job` mode** vs. **Cloud Workstations** | Autonomous CVE patching + `runsc` syscall isolation vs. host-kernel container vs. persistent human developer IDE in VPC-SC | [05](../tracks/02_coding_agents/lab_05_secure_sandboxes) |
+| **Multi-agent latency**: `SequentialAgent` vs. `ParallelAgent` vs. `transfer_to_agent` vs. `AgentTool` vs. `Workflow` | $\sum T_i$ vs. $\max T_i$ vs. 1-hop handoff vs. 2-LLM-hop tool wrapper vs. 0ms deterministic edge routing | [08](../tracks/03_custom_agents/lab_08_adk_fundamentals), [12](../tracks/03_custom_agents/lab_12_multi_agent_and_a2a) |
+| **RAG Engine + Ranking API** vs. **Agent Search** vs. **Vector Search 1.0** | Managed chunking + `RankServiceClient` cross-encoder reranking vs. turn-key OOTB connectors/ACLs vs. raw sub-10ms custom ANN index | [11](../tracks/03_custom_agents/lab_11_rag_and_retrieval) |
+| **Evaluation Rubric** (`RubricsBasedCriterion`) vs. **Metric** (`ToolTrajectoryCriterion` / `Rouge`) | Reference-free LLM judge grading open-ended quality vs. deterministic reference/trajectory comparison | [13](../tracks/04_evaluate_and_deploy/lab_13_agent_evaluation) |
+| **Model Armor + SDP at Agent Gateway** vs. **in-agent `ModelArmorPlugin`** | Centralized org-wide perimeter enforcement + `SdpAdvancedConfig` PHI redaction vs. mid-loop MCP tool-output screening (`block_on_screening_failure=True`) | [17](../tracks/05_secure_and_govern/lab_17_model_armor_and_hitl), [20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense) |
+| **Agent Identity + PAB** vs. **Least-Privilege IAM Allow** | Zero static keys + hard resource ceiling (`IAM Allow ∩ PAB`) vs. narrowest resource-scoped role grants | [16](../tracks/05_secure_and_govern/lab_16_agent_identity_and_auth), [20](../tracks/05_secure_and_govern/lab_20_e2e_ai_threat_defense) |

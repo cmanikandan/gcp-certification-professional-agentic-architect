@@ -38,12 +38,16 @@ google-cloud-secret-manager>=2.22.0
 google-cloud-logging>=3.11.0
 google-cloud-trace>=1.15.0
 google-cloud-dlp>=3.26.0
+google-cloud-discoveryengine>=0.13.12
+google-cloud-modelarmor>=0.7.0
 
 # ---------------------------------------------------------------------------
 # Lab support
 # ---------------------------------------------------------------------------
 pydantic>=2.10.0
 numpy>=2.1.0
+pandas>=2.2.0
+tqdm>=4.66.0
 redis>=5.2.0
 fastapi>=0.115.0
 uvicorn>=0.34.0

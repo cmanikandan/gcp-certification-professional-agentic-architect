@@ -1,8 +1,8 @@
-# Lab 16 — Agent Identity and Auth
+# Lab 16 — IAM Least-Privilege, Agent Identity, Connector Auth & PAB
 
-**Exam section:** 5.1 Configuring agent security and governance (~15% of the exam)
-**Objectives covered:** "Implementing authentication and secure tool execution (agent-to-tool API calls using OAuth 2.0)", "Configuring principal access boundary (PAB) policies using Agent Identity"
-**Time:** ~25 minutes · **Cost:** Free offline / ~$0.00 live
+**Exam section:** 5.1 Configuring agent security and governance & 3.2 Agent permissions (~15% direct Section 5 weight + 30–35% cross-cutting IAM across the exam)
+**Objectives covered:** 5.1 ("Implementing authentication and secure tool execution [agent-to-tool API calls using OAuth 2.0]", "Configuring principal access boundary [PAB] policies using Agent Identity"), 3.2 ("Configuring agent permissions [e.g., Agent Identity]")
+**Time:** ~30 minutes · **Cost:** Free offline / ~$0.00 live
 
 ---
 
@@ -13,38 +13,67 @@
 > Quoted verbatim from the official exam guide:
 > - "Implementing authentication and secure tool execution (agent-to-tool API calls using OAuth 2.0)"
 > - "Configuring principal access boundary (PAB) policies using Agent Identity"
+> - "Configuring agent permissions (e.g., Agent Identity)"
 
 ## 2. Explain it simply
 
-Imagine your agent is a new employee. When they start, they need a badge to get into the building (identity), specific keys for different rooms (tool access), and rules about which floors they can never enter (boundary policies).
+IAM, credential provisioning, connector authentication, and cross-project blast-radius control show up in **roughly one out of every three questions across the entire exam**. Every scenario tests four non-negotiable security distinctions:
 
-**Agent Identity** is how your agent proves who it is to Google Cloud and to third-party tools. **OAuth 2.0** is the standard protocol the agent uses to request permission to use those tools on behalf of a human user. A **Principal Access Boundary (PAB) policy** is an absolute boundary line—a fail-safe that guarantees the agent can only touch specific resources, regardless of what other permissions it might have accidentally been granted.
+1. **Zero Static Credentials (`Agent Identity` & Workload Identity):** Never export a Service Account JSON key (`key.json`) or bake API keys into container environment variables. Provision short-lived tokens dynamically via **Agent Identity** (`GcpAuthProvider`, `GcpAuthProviderScheme`, `AuthProviderCredentialsServiceClient`) and resource-scoped Secret Manager (`roles/secretmanager.secretAccessor`).
+2. **Workload Identity vs. 3LO User-Delegated OAuth 2.0 / Connector Auth:** If an agent calls an internal microservice as *itself*, use short-lived **Workload / Agent Identity OIDC tokens**. If an agent reads a human user's Google Drive, Jira tickets, or ServiceNow HIPAA incidents, a shared Service Account would bypass per-user permissions — you **must** use **3-Legged OAuth 2.0 (3LO)** via ADK Auth Manager (`OAuth2Auth` / `GcpAuthProviderScheme`) or **Gemini Enterprise Connector Auth** (`IAMConnectorCredentialsServiceClient`).
+3. **Cross-Project Least-Privilege Predefined Roles:** Never grant `roles/owner`, `roles/editor`, `roles/bigquery.admin`, or project-wide `roles/bigquery.dataViewer`. Grant narrow predefined roles at the **smallest resource hierarchy node** (dataset, Cloud Run service, or individual secret).
+4. **Principal Access Boundary (PAB):** Even if someone accidentally grants an over-broad IAM role at the Organization or Folder level, a **PAB policy** bound to the Agent Identity acts as an absolute ceiling: **`Effective Access = IAM Allow ∩ PAB Eligible Resources`**.
 
 ## 3. How it works
 
 ```mermaid
-graph LR
-    User[End User] -->|1. Request| Agent[ADK Agent]
-    Agent -->|2. Need auth| GcpAuth[Agent Identity<br>GcpAuthProvider]
-    GcpAuth -.->|3. Redirect| User
-    User -.->|4. Consent| GcpAuth
-    GcpAuth -->|5. Credentials| Agent
-    Agent -->|6. Call with OAuth2| Tool[Third-Party Tool]
-    Agent -->|7. API Call| Data[(GCP Resource)]
-    PAB[PAB Policy] -.->|Enforces limits on| Data
+flowchart LR
+    User(["End User / Clinician"]) -->|"1. 3LO Consent (continue_uri)"| Conn["Agent Identity / Connector Auth<br/>(GcpAuthProvider · IAMConnectorCredentials)"]
+    Conn -->|"2. Scoped User OAuth Token"| Agent["ADK Agent<br/>(proj-agent-host)"]
+
+    subgraph HostProj["Project A: proj-agent-host"]
+        Agent -->|"roles/aiplatform.user<br/>roles/modelarmor.user<br/>roles/bigquery.jobUser"| HostAPIs["Vertex AI · Model Armor<br/>BigQuery Job Compute"]
+    end
+
+    subgraph DataProj["Project B: proj-hipaa-warehouse"]
+        HostAPIs -->|"Dataset-scoped ONLY:<br/>roles/bigquery.dataViewer"| BQ[("Authorized Dataset:<br/>claims_deidentified")]
+    end
+
+    subgraph ToolProj["Project C: proj-mcp-tools"]
+        Agent -->|"Service-scoped OIDC:<br/>roles/run.invoker"| MCP["Private Cloud Run MCP Server"]
+    end
+
+    PAB["Principal Access Boundary (PAB)"] -.->|"Ceiling: IAM Allow ∩ PAB<br/>Blocks Project D (Payroll)"| Agent
 ```
 
-1.  **Auth Schemes:** You configure tools with an `AuthConfig` specifying an `AuthScheme` (like `GcpAuthProviderScheme` or `OAuth2Auth`).
-2.  **Agent Identity:** The ADK uses the `GcpAuthProvider` to handle the OAuth flow, exchanging credentials and optionally redirecting the user for consent.
-3.  **PAB Policies:** A PAB policy is bound to the agent's service account. It restricts the service account to only access resources within a specific organization, folder, or project. Even if the service account has `roles/editor` globally, the PAB blocks access outside the boundary.
+### The Exam-Critical Cross-Project Least-Privilege Role Table
+
+| Target Service & Project | Exact Predefined IAM Role | Mandatory Resource Scope | Exam Anti-Pattern Distractor to Eliminate |
+| :--- | :--- | :--- | :--- |
+| **Vertex AI Gemini / Agent Runtime / Memory Bank** (`proj-agent-host`) | `roles/aiplatform.user` | Host Project | `roles/aiplatform.admin` or `roles/editor` |
+| **Model Armor Prompt/Response Screening** (`proj-agent-host`) | `roles/modelarmor.user` | Host Project / Template | `roles/securitycenter.admin` |
+| **Agent Search / Discovery Engine RAG** (`proj-enterprise-rag`) | `roles/discoveryengine.viewer` | Data Store / RAG Project | `roles/discoveryengine.admin` |
+| **Cross-Project BigQuery Analytics** (`proj-agent-host` -> `proj-hipaa-warehouse`) | **`roles/bigquery.jobUser`** on `proj-agent-host` **+** **`roles/bigquery.dataViewer`** on the specific **Dataset** in `proj-hipaa-warehouse` | Host Project (jobs) + **Target Dataset** (data) | `roles/bigquery.admin`, project-wide `roles/bigquery.dataViewer` on the data project, or running jobs inside the restricted data project |
+| **Private Cloud Run MCP / A2A Endpoint** (`proj-mcp-tools`) | `roles/run.invoker` | **Specific Cloud Run Service** | Project-wide `roles/run.invoker` or `--allow-unauthenticated` |
+| **Third-Party Webhook HMAC / API Secret** (`proj-agent-host`) | `roles/secretmanager.secretAccessor` | **Individual Secret Resource** | Plaintext `ENV` vars in `Dockerfile` or project-wide `roles/secretmanager.admin` |
+
+### Agent Identity (`agentidentitycredentials_v1`) vs. Connector Auth (`iamconnectorcredentials_v1alpha`)
+
+- **`GcpAuthProvider` + `GcpAuthProviderScheme` (`google.adk.integrations.agent_identity`):**
+  - Backed by `google.cloud.agentidentitycredentials_v1.AuthProviderCredentialsServiceClient` (`RetrieveCredentialsRequest` / `FinalizeCredentialsRequest`).
+  - Provisions managed tokens for ADK tools (`AuthConfig(auth_scheme=scheme)`) without storing client secrets in agent code.
+- **Gemini Enterprise Connector Auth (`google.cloud.iamconnectorcredentials_v1alpha.IAMConnectorCredentialsServiceClient`):**
+  - Powers first-party and third-party enterprise connectors (Jira, ServiceNow, Salesforce, Workday, Google Workspace) in Gemini Enterprise.
+  - When a user invokes a connector tool for the first time, `RetrieveCredentialsRequest(connector=..., user_id=..., scopes=..., continue_uri=...)` initiates a **3LO consent redirect**, then securely vaults and refreshes per-user tokens so the agent can only read records that specific user owns.
 
 ## 4. The decision that matters
 
-| If you need... | Use | Why not the alternative |
+| Exam Scenario | Select This Design | Why Alternatives Fail |
 | :--- | :--- | :--- |
-| To limit an agent's maximum blast radius across GCP | **PAB Policy** | IAM roles (`roles/storage.objectViewer`) dictate *what* an agent can do, but PABs dictate *where*. PABs override IAM. |
-| To call a third-party API on behalf of the user | **OAuth 2.0 / OIDC** | Service accounts (`AuthCredentialTypes.SERVICE_ACCOUNT`) act as the agent, not the user. OAuth acts on the user's behalf. |
-| To authenticate internal agent-to-tool calls securely | **Workload Identity** | Long-lived API keys leak. Short-lived tokens generated by Workload Identity are secure and rotate automatically. |
+| Agent in `proj-agent-host` must run SQL queries against one HIPAA-deidentified dataset in `proj-hipaa-warehouse` without seeing 20 other sensitive datasets in `proj-hipaa-warehouse` | Grant **`roles/bigquery.jobUser` on `proj-agent-host`** and **dataset-level `roles/bigquery.dataViewer`** on that single dataset in `proj-hipaa-warehouse` | Project-level `roles/bigquery.dataViewer` exposes all 21 datasets; omitting `roles/bigquery.jobUser` causes `Access Denied: bigquery.jobs.create`. |
+| Customer-support agent needs to create Jira tickets and read Google Drive files strictly under the logged-in employee's permissions | **3LO OAuth 2.0 via Connector Auth (`IAMConnectorCredentialsServiceClient`) or ADK `GcpAuthProviderScheme` / `OAuth2Auth` (PKCE `S256`)** | A shared Service Account acts with uniform privileges across all employees, causing confused-deputy data leaks. |
+| Security team wants an org-wide guarantee that even if a project admin mistakenly grants an agent `roles/storage.admin` on `proj-prod-payroll`, the agent still cannot touch `proj-prod-payroll` | Bind a **Principal Access Boundary (PAB)** policy to the Agent Identity listing only approved sandbox/data projects | IAM Allow roles are additive; only a PAB enforces an identity-centric ceiling (`Effective Access = IAM Allow ∩ PAB`). |
+| Agent deployed on Cloud Run calls a third-party REST API requiring a static vendor token | Store the token in **Secret Manager** and grant secret-scoped **`roles/secretmanager.secretAccessor`** to the dedicated runtime SA | Hardcoding tokens in `Dockerfile` `ENV` or downloading a Service Account JSON key violates key-rotation and secret-hygiene controls. |
 
 ## 5. Hands-on A — offline (free)
 
@@ -52,51 +81,43 @@ graph LR
 ./tracks/05_secure_and_govern/lab_16_agent_identity_and_auth/run_lab.sh
 ```
 
-This offline run demonstrates constructing the real ADK `GcpAuthProviderScheme` and setting up a PAB policy definition in python.
-
-**Output highlights:**
-- Shows the real `GcpAuthProviderScheme` attributes.
-- Demonstrates how to configure an `AgentTool` with authentication.
-- Shows the `gcloud iam principal-access-boundary-policies` command structure.
+The offline runner instantiates ADK 2.9.0's `GcpAuthProvider`, `GcpAuthProviderScheme`, `OAuth2Auth`, `agentidentitycredentials_v1.RetrieveCredentialsRequest`, and `iamconnectorcredentials_v1alpha.RetrieveCredentialsRequest`, executes the deterministic **Cross-Project Least-Privilege IAM Auditor** across compliant vs. over-privileged blueprints, and verifies PAB set intersection (`IAM Allow ∩ PAB`).
 
 ## 6. Hands-on B — live on Google Cloud (opt-in)
 
-Enable the IAM API:
 ```bash
-gcloud services enable iam.googleapis.com cloudresourcemanager.googleapis.com
-```
+export GOOGLE_CLOUD_PROJECT="your-project-id"
+export GOOGLE_CLOUD_LOCATION="us-central1"
 
-Create a Principal Access Boundary Policy:
-```bash
-gcloud iam principal-access-boundary-policies create my-pab-policy \
-    --organization=YOUR_ORG_ID \
-    --location=global \
-    --display-name="Agent Boundary" \
-    --details-rules="description=Limit to sandbox,effect=ALLOW,resources=//cloudresourcemanager.googleapis.com/projects/YOUR_PROJECT_ID"
-```
-*(Note: PAB policies require an Organization ID)*
+gcloud services enable iam.googleapis.com cloudresourcemanager.googleapis.com \
+  --project="$GOOGLE_CLOUD_PROJECT"
 
-Run the lab:
-```bash
+# Create an Organization-level Principal Access Boundary (PAB) policy:
+gcloud iam principal-access-boundary-policies create agent-sandbox-ceiling \
+  --organization="YOUR_ORG_ID" \
+  --location=global \
+  --display-name="Restrict Agent Identity to Approved Projects" \
+  --details-rules="description=Approved projects only,effect=ALLOW,resources=//cloudresourcemanager.googleapis.com/projects/${GOOGLE_CLOUD_PROJECT}"
+
 ./tracks/05_secure_and_govern/lab_16_agent_identity_and_auth/run_lab.sh --live
 ```
 
 > [!WARNING]
-> Cost note: Free. IAM operations and PAB policies do not incur direct costs.
+> Cost note: IAM role bindings and Principal Access Boundary policies incur **$0.00** in Google Cloud charges. Note that PAB policies require Organization-level IAM admin permissions.
 
 ## 7. Verify it worked
 
-Check the PAB policy:
-```bash
-gcloud iam principal-access-boundary-policies list --organization=YOUR_ORG_ID --location=global
-```
+1. Confirm `GcpAuthProviderScheme` reports `type_ == "gcpAuthProviderScheme"` and pairs cleanly with `AuthConfig`.
+2. Confirm `audit_cross_project_iam_bindings` approves host-project `roles/bigquery.jobUser` + dataset-scoped `roles/bigquery.dataViewer` while rejecting `roles/editor`, `roles/bigquery.admin`, and project-wide `roles/run.invoker`.
+3. Confirm `evaluate_pab_effective_access` drops `proj-prod-payroll-restricted` even when present in `iam_allowed_resources`.
 
 ## 8. Troubleshooting
 
 | Symptom | Cause | Fix |
 | :--- | :--- | :--- |
-| `ImportError: cannot import name 'GcpAuthProvider'` | Missing the Agent Identity extra. | Run `pip install "google-adk[agent-identity]"`. |
-| PAB policy creation fails | Missing Organization ID. | PAB policies cannot be created at the project level, they require an Organization. |
+| `ImportError: cannot import name 'GcpAuthProvider'` | Missing the `agent-identity` extra on `google-adk`. | Run `pip install "google-adk[agent-identity]"`. |
+| `403 Access Denied: User does not have bigquery.jobs.create permission` on cross-project query | Agent was granted dataset `roles/bigquery.dataViewer` on Project B, but lacked `roles/bigquery.jobUser` on Project A. | Grant `roles/bigquery.jobUser` to the agent's identity on its host/billing project (`proj-agent-host`). |
+| Agent has `roles/storage.objectViewer` on Bucket X, yet receives `PERMISSION_DENIED` | A Principal Access Boundary (PAB) bound to the principal excludes Bucket X's parent project. | Verify PAB bindings via `gcloud iam principal-access-boundary-policies` — PAB overrides IAM Allow grants. |
 
 ## 9. Clean up
 
@@ -104,31 +125,32 @@ gcloud iam principal-access-boundary-policies list --organization=YOUR_ORG_ID --
 ./tracks/05_secure_and_govern/lab_16_agent_identity_and_auth/cleanup.sh
 ```
 
-Live cleanup:
+If you created a live PAB policy:
 ```bash
-gcloud iam principal-access-boundary-policies delete my-pab-policy \
-    --organization=YOUR_ORG_ID --location=global
+gcloud iam principal-access-boundary-policies delete agent-sandbox-ceiling \
+  --organization="YOUR_ORG_ID" --location=global --quiet
 ```
 
 ## 10. Exam traps
 
-*   **PAB vs IAM:** PABs do **not** grant access. They only restrict it. If a PAB allows a project, the agent still needs an IAM role to do anything in that project.
-*   **Service Account vs OAuth:** If the exam asks how an agent should access a user's personal Google Drive, the answer is OAuth 2.0 (user identity), not a Service Account (workload identity).
-*   **Agent Identity is an ADK extra:** You must explicitly install `google-adk[agent-identity]` to use `GcpAuthProvider`.
+- **PAB Grants ZERO Permissions on Its Own:** If a PAB allows Project A, and the Agent Identity has *no IAM Allow role* on Project A, access is **DENIED**. Effective access is strictly **`IAM Allow ∩ PAB`**.
+- **Static SA Keys (`JSON`) Are Always Wrong on GCP:** Any exam option proposing `gcloud iam service-accounts keys create key.json` for an agent running on Agent Runtime, Cloud Run, or GKE (or via Workload Identity Federation from AWS/GitHub Actions) is an immediate distractor.
+- **Cross-Project BigQuery Split-Role Pattern:** Remember the exact split: **`roles/bigquery.jobUser`** on the **agent's host project** + **dataset-scoped `roles/bigquery.dataViewer`** on the **data project**.
+- **Confused Deputy via Service Account:** Never use an agent's Service Account to query user-scoped SaaS/Drive/Jira data on behalf of end users; use **3LO OAuth 2.0 (`OAuth2Auth` / Connector Auth)** or propagate the user's OAuth token.
 
 ## 11. Check yourself
 
 <details>
-<summary>1. What happens if a service account has the Owner role on Project A, but a PAB policy attached to the service account only allows access to Project B?</summary>
-The service account will be denied access to Project A. PAB policies cap the blast radius, overriding granted IAM roles.
+<summary>1. An agent hosted in `proj-agent` must read table `claims` inside dataset `hipaa_clean` in `proj-warehouse`, without accessing any other datasets in `proj-warehouse`. What exact IAM roles should be granted and where?</summary>
+Grant `roles/bigquery.jobUser` to the agent's identity on `proj-agent` (so it can run query jobs in its own project) and grant `roles/bigquery.dataViewer` scoped strictly to the `hipaa_clean` dataset (or `claims` table) in `proj-warehouse`.
 </details>
 
 <details>
-<summary>2. How does the ADK support authenticating tool calls using Agent Identity?</summary>
-By configuring the tool's `auth_config` with a `GcpAuthProviderScheme`.
+<summary>2. When should an architect choose Gemini Enterprise Connector Auth (`IAMConnectorCredentialsServiceClient`) or ADK `OAuth2Auth` over a Google Cloud Service Account?</summary>
+Whenever the agent executes tool calls **on behalf of an individual human user** against systems with per-user ACLs (such as Salesforce, ServiceNow, Jira, or Google Workspace), requiring a 3-legged OAuth (3LO) user consent flow and per-user token isolation.
 </details>
 
 <details>
-<summary>3. Which gcloud command group manages PABs?</summary>
-`gcloud iam principal-access-boundary-policies`.
+<summary>3. A developer accidentally grants an agent's identity `roles/editor` at the Folder level containing 15 projects, while a Principal Access Boundary (PAB) bound to that identity lists only `projects/sandbox-01`. Which projects can the agent access?</summary>
+Only `projects/sandbox-01`. Effective permissions equal the intersection of IAM Allow policies and PAB eligible resources (`IAM Allow ∩ PAB`), blocking the other 14 projects immediately.
 </details>

@@ -1,15 +1,21 @@
 ---
 name: my-custom-skill
-description: Demonstrates how to create a custom skill for Antigravity, including resource scripts.
-allowed_tools: "run_command, view_file"
+description: >-
+  Audits Google Cloud IAM bindings and Terraform plans for least-privilege
+  compliance before deployment. Use when reviewing IAM roles or running
+  pre-deployment security checks.
+license: Apache-2.0
+compatibility: gemini-3.7-flash
+allowed_tools: "view_file, run_command"
 metadata:
-  author: "Agentic Architect Learner"
+  author: "Agentic Architect Study Repo"
+  approval_gate: "required"
 ---
-# Skill: My Custom Skill
+# Skill: Enterprise IAM & Pre-Deployment Auditor
 
-This skill teaches the coding agent how to perform a specialized enterprise task. 
-The skill body contains the instructions. The `scripts/` directory contains the tools.
+Use this skill whenever the user asks to validate IAM roles or run pre-flight security checks.
 
-## Instructions
-1. Always run the `validate.py` script before committing code.
-2. Use the `run_command` tool to execute it.
+## Workflow
+1. Read the least-privilege role table in `references/iam_runbook.md` only if IAM bindings are modified.
+2. Execute `scripts/validate.py` via `run_command` to verify policy conformance.
+3. Require Human-in-the-Loop (HITL) approval before applying changes.

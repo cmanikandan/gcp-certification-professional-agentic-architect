@@ -1,52 +1,45 @@
 #!/usr/bin/env python3
-import sys
+"""Local stdio MCP server for Lab 04 (MCP 2.x).
+
+CRITICAL EXAM RULE:
+When an MCP server uses ``stdio`` transport, ``stdout`` carries raw JSON-RPC 2.0
+frames. Every diagnostic message or log line MUST be written to ``sys.stderr``.
+"""
+
+from __future__ import annotations
+
 import hashlib
-import asyncio
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-import mcp.types as types
+import os
+import sys
 
-# 1. Initialize the MCP Server
-app = Server("enterprise-crypto-server")
+from mcp.server import MCPServer
 
-async def handle_list_tools(request) -> types.ListToolsResult:
-    """Expose available tools to the MCP client."""
-    return types.ListToolsResult(
-        tools=[
-            types.Tool(
-                name="calculate_checksum",
-                description="Calculates SHA-256 checksum of text.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "text": {"type": "string", "description": "Text to hash"}
-                    },
-                    "required": ["text"],
-                }
-            )
-        ]
-    )
+mcp = MCPServer("enterprise-crypto-server")
 
-async def handle_call_tool(request: types.CallToolRequest) -> types.CallToolResult:
-    """Handle tool execution requests."""
-    name = request.params.name
-    arguments = request.params.arguments or {}
-    if name == "calculate_checksum":
-        text = arguments.get("text", "")
-        checksum = hashlib.sha256(str(text).encode()).hexdigest()
-        return types.CallToolResult(content=[types.TextContent(type="text", text=checksum)])
-    raise ValueError(f"Unknown tool: {name}")
 
-app.add_request_handler(types.ListToolsRequest.model_fields['method'].default, types.ListToolsRequest, handle_list_tools)
-app.add_request_handler(types.CallToolRequest.model_fields['method'].default, types.CallToolRequest, handle_call_tool)
+@mcp.tool(description="Calculates the SHA-256 hex digest of UTF-8 text.")
+def calculate_checksum(text: str) -> str:
+    """Return deterministic SHA-256 hex digest for ``text``."""
+    print(f"[audit] hashing {len(text)} chars", file=sys.stderr)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-async def main():
-    # 2. Run over stdio transport
-    # CRITICAL EXAM POINT: stdio transport requires reading from stdin and writing to stdout.
-    # Therefore, ALL application logging MUST go to stderr.
-    print("Starting enterprise-crypto-server...", file=sys.stderr)
-    async with stdio_server() as (read_stream, write_stream):
-        await app.run(read_stream, write_stream, app.create_initialization_options())
+
+@mcp.tool(description="Returns whether the server is running in read-only mode.")
+def server_security_mode() -> dict[str, str]:
+    """Return environment-scoped execution posture passed via mcp_config.json env."""
+    readonly = os.getenv("MCP_READONLY", "true").lower()
+    print(f"[audit] queried server_security_mode={readonly}", file=sys.stderr)
+    return {
+        "server": "enterprise-crypto-server",
+        "transport": "stdio",
+        "readonly": readonly,
+    }
+
+
+def main() -> None:
+    print("Starting enterprise-crypto-server over stdio...", file=sys.stderr)
+    mcp.run(transport="stdio")
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

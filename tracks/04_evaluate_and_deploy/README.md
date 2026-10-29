@@ -1,11 +1,12 @@
-# Track 4 — Evaluating and deploying agentic workflows
+# Track 4 — Evaluating and Deploying Agentic Workflows
 
 > **Personal study repo — not affiliated with Google Cloud.** Official guidance: [cloud.google.com/learn/certification/agentic-architect](https://cloud.google.com/learn/certification/agentic-architect) · [Disclaimer](../../DISCLAIMER.md)
 
-This track covers approximately 22% of the Google Cloud Certified Professional Agentic Architect (beta) exam.
+This track covers **Section 4 (~22%)** of the Google Cloud Certified Professional Agentic Architect exam: evaluating agent quality in CI/CD and production, choosing the right managed or self-hosted runtime paired with durable session/memory backends, troubleshooting latency and reasoning loops with HIPAA-safe telemetry, and serving open-weight SLMs on GKE GPUs.
 
-It is broken down into three labs:
+## Labs in this track
 
-* **Lab 13: Agent Evaluation** (Objective 4.1): Creating test sets, golden data, and continuous evaluation pipelines using the ADK `AgentEvaluator` and `.evalset.json` tooling. Also compares LLM-as-judge autoraters vs programmatic rubrics.
-* **Lab 14: Deployment Runtimes** (Objective 4.2): Selecting the optimal deployment runtime (Agent Runtime vs Cloud Run vs GKE) based on cost, operational burden, and use case requirements.
-* **Lab 15: Observability and Troubleshooting** (Objective 4.2): Monitoring agent loops, tool invocation latency, and hallucinations using OpenTelemetry, Cloud Trace, and ADK telemetry controls (`RunConfig.max_llm_calls`, `LoopAgent.max_iterations`).
+* **[Lab 13: Agent Evaluation — Deterministic Metrics vs. Rubrics & Gen AI Evaluation Service](lab_13_agent_evaluation/README.md)** *(Objective 4.1)*: Contrasts reference-based deterministic metrics (`ToolTrajectoryCriterion` with `EXACT` / `IN_ORDER` / `ANY_ORDER`, `final_response_match_v2`, `Rouge`) against reference-free LLM-as-judge rubrics (`Rubric`, `RubricContent`, `RubricsBasedCriterion`, `JudgeModelOptions`), and maps when to run local `adk eval` (`.evalset.json`) vs. the cloud-scale **Agent Platform Gen AI Evaluation Service** (`vertexai.evaluation.EvalTask`, `PointwiseMetric`, `PairwiseMetric`, `CustomMetric`, Adaptive Rubrics).
+* **[Lab 14: Deployment Runtimes, Managed Sessions & Memory Bank](lab_14_deployment_runtimes/README.md)** *(Objective 4.2 & 3.1)*: Compares **Agent Runtime** (`adk deploy agent_engine` with native `VertexAiSessionService`, `VertexAiMemoryBankService`, `--worker_pool` for VPC-SC, and dedicated least-privilege Agent Identity) against **Cloud Run** (`adk deploy cloud_run` scale-to-zero with external `RedisSessionService` / `DatabaseSessionService`) and **GKE** (`adk deploy gke`).
+* **[Lab 15: Observability, Loop Guardrails & HIPAA-Safe Telemetry](lab_15_observability_and_troubleshooting/README.md)** *(Objective 4.2)*: Diagnoses **tool invocation latency vs. LLM generation latency** (`trace_call_llm`, `trace_tool_call`, `trace_merged_tool_calls`), breaks infinite reasoning loops (`RunConfig.max_llm_calls`, `LoopAgent.max_iterations`, `ReflectAndRetryToolPlugin`), strips PHI/PII from spans (`ContentCapturingMode.NO_CONTENT`), and wires `adk optimize` (GEPA) + `adk conformance` with least-privilege observability IAM.
+* **[Lab 19: GKE Inference Gateway, Open-Weight GPUs (`Gemma 4`) & Agent Sandbox](lab_19_gke_inference_gateway_and_gpus/README.md)** *(Objective 4.2, 3.1 & 2.1)*: Architects regulated/HIPAA air-gapped open-weight SLM serving on GKE GPUs (`InferencePool` KV-cache & LoRA affinity, criticality load shedding), kernel-isolated `GkeCodeExecutor(executor_type="sandbox")` on gVisor, and least-privilege GKE Workload Identity.

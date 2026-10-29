@@ -1,8 +1,8 @@
-# Lab 13 — Agent Evaluation
+# Lab 13 — Agent Evaluation: Deterministic Metrics vs. Rubrics & Gen AI Evaluation Service
 
 **Exam section:** 4.1 Evaluating agents in development and in production (~22% of the exam)
-**Objectives covered:** 4.1 (Creating test sets for agent evaluation, continuous evaluation pipelines, appropriate evaluation framework and tooling, evaluating against a golden dataset).
-**Time:** ~25 minutes · **Cost:** Free offline / ~$0.05 live
+**Objectives covered:** 4.1 (Creating test sets for agent evaluation, continuous evaluation pipelines, determining appropriate evaluation framework and tooling — ADK evaluation tooling [evalset], Agent Platform Gen AI evaluation service, custom autoraters — and evaluating response & retrieval quality)
+**Time:** ~30 minutes · **Cost:** Free offline / ~$0.05 live
 
 ---
 
@@ -18,34 +18,70 @@
 
 ## 2. Explain it simply
 
-Evaluating agents is fundamentally different from traditional unit testing. Traditional software is deterministic; given the same input, you get the exact same output. Large Language Models are non-deterministic and can achieve the right outcome through varied reasoning paths and phrasing. 
+Agent evaluation has two fundamentally different ways to grade an agent turn, and **confusing a Metric with a Rubric — or local `adk eval` with the cloud Gen AI Evaluation Service — is one of the highest-frequency exam traps**:
 
-To evaluate an agent, we provide a "Golden Dataset" (`.evalset.json`), which contains test cases with expected behavior. We then use an "Evaluator" (often another LLM acting as a judge) to compare the agent's actual responses and tool usage against rubrics and success criteria.
+1. **Deterministic / Reference-Based Metric (`ToolTrajectoryCriterion`, `final_response_match_v1` / `v2`, `Rouge`):** Compares what the agent actually did against a **pre-written golden answer or expected tool call list** (`expected_tool_use`, `reference`). It is fast, deterministic, and costs $0 in LLM judge tokens — ideal for every pull-request CI check. However, it **requires fixed golden references** and breaks whenever an agent phrases a valid answer differently or invokes a harmless extra helper tool.
+2. **Rubric-Based Evaluation (`Rubric`, `RubricContent`, `RubricsBasedCriterion`, Adaptive Rubrics):** Decomposes quality, safety, and policy compliance into **explicit natural-language pass/fail questions** graded by a distinct autorater LLM (`JudgeModelOptions`), such as *"Did the pharmacy support agent verify `member_id` and DOB before disclosing HIPAA prescription status?"*. Rubrics work **reference-free** (no golden response text needed!) and catch subtle policy, tone, and sequencing violations.
+3. **Local ADK Evaluation (`adk eval` / `AgentEvaluator`) vs. Agent Platform Gen AI Evaluation Service (`vertexai.evaluation.EvalTask`):** Use **`adk eval`** with `.evalset.json` during developer iteration and CI/CD unit/trajectory regression gates. Use the cloud **Gen AI Evaluation Service** when evaluating **thousands of rows in BigQuery/GCS**, running **Pairwise win-rate (`PairwiseMetric`) A/B comparisons** during model or prompt upgrades, generating **Adaptive Rubrics** dynamically per prompt, or scoring sampled production traces.
 
 ## 3. How it works
 
 ```mermaid
-graph LR
-    A[Agent Code] --> B{AgentEvaluator}
-    C[.evalset.json] --> B
-    D[config.json] --> B
-    B --> E[Metric Scores & Failures]
+flowchart LR
+    subgraph LocalCI["Local & CI/CD Gate (ADK Evaluation)"]
+        ES[".evalset.json<br/>(EvalSet + EvalCase)"] --> AE["AgentEvaluator / adk eval"]
+        CFG["config.json<br/>(EvalConfig)"] --> AE
+        AE -->|"Reference-based"| DET["Deterministic Metrics<br/>ToolTrajectoryCriterion (EXACT / IN_ORDER / ANY_ORDER)<br/>final_response_match_v2 · Rouge"]
+        AE -->|"Reference-free"| RUB["RubricsBasedCriterion<br/>rubric_based_final_response_quality_v1<br/>rubric_based_tool_use_quality_v1"]
+    end
+
+    subgraph CloudScale["Cloud Scale & Prod Sampling (Gen AI Evaluation Service)"]
+        BQ[("BigQuery / GCS<br/>Golden Sets & Prod Traces")] --> ET["vertexai.evaluation.EvalTask"]
+        ET --> PW["PointwiseMetric & Adaptive Rubrics<br/>(Reference-Free Policy / Hallucinations)"]
+        ET --> PAIR["PairwiseMetric<br/>(Baseline vs Candidate Model Win-Rate)"]
+        ET --> CUST["CustomMetric<br/>(Deterministic Python Regex / Schema Checks)"]
+    end
+
+    DET -->|"Fast PR pass/fail"| CloudScale
+    RUB -->|"Distinct Judge LLM"| CloudScale
 ```
 
-1. **EvalSets:** `adk eval_set` helps manage evaluation sets (groups of `EvalCase` objects). Each case defines an input (conversation or scenario) and expected attributes (like `final_session_state`, `rubrics`, or exact `final_response`).
-2. **Metrics:** Configured via JSON, metrics fall into two broad buckets:
-   - Programmatic / Deterministic (e.g. `final_response_match_v1`, `trajectory_evaluator`)
-   - LLM-as-judge (e.g. `rubric_based_final_response_quality_v1`, `llm_as_judge`, `rubric_based_tool_use_quality_v1`)
-3. **Execution:** The `adk eval` command takes your agent, the eval set, and the config, simulates the interactions, computes the metrics, and reports success or failure based on thresholds.
+### Deep Comparison: ADK Deterministic Metric vs. Rubric
+
+| Dimension | Deterministic / Reference-Based Metric | Rubric-Based Autorater (`RubricsBasedCriterion` / Adaptive Rubrics) |
+| :--- | :--- | :--- |
+| **ADK 2.9.0 Classes & Keys** | `ToolTrajectoryCriterion` (`MatchType.EXACT`, `IN_ORDER`, `ANY_ORDER`), `tool_trajectory_avg_score`, `final_response_match_v1`, `final_response_match_v2`, `response_match_score` (`Rouge`) | `Rubric`, `RubricContent`, `RubricsBasedCriterion`, `JudgeModelOptions`, `rubric_based_final_response_quality_v1`, `rubric_based_tool_use_quality_v1`, `rubric_based_multi_turn_trajectory_quality_v1` |
+| **Requires Golden Reference?** | **Yes** — requires `final_response` text or `intermediate_data.tool_uses` in `.evalset.json`. | **No (Reference-Free capable)** — grades the actual transcript against explicit natural-language criteria (`text_property`). |
+| **Determinism & Cost** | 100% deterministic, sub-millisecond, zero LLM judge token cost (except semantic v2). | Non-deterministic LLM judge; mitigated via `JudgeModelOptions(num_samples=3)` majority/mean aggregation. |
+| **Primary Failure Mode** | **False negatives** when valid responses paraphrase or call an extra read-only diagnostic tool (`EXACT` mode). | **Self-preference bias** if `judge_model` equals the agent's own model, or vague rubric wording. |
+| **Best Exam Use Case** | Verifying exact tool parameter schemas, deterministic math/JSON outputs, and fast GitHub/Cloud Build PR gates. | Regulated compliance (e.g., *"Verified HIPAA identity before disclosing order ETA"*), tone, empathy, multi-turn goal completion, and production trace sampling. |
+
+### Trajectory Match Modes (`ToolTrajectoryCriterion.MatchType`)
+
+- **`EXACT`**: Actual tool calls must match the golden list 1-for-1 in count, order, and arguments. Fails if the agent calls an optional read-only helper (`check_weather_advisory`).
+- **`IN_ORDER`**: Every required golden tool call must appear in the exact required order (`verify_patient_identity` **before** `lookup_prescription_order`), while allowing extra diagnostic tool calls in between. **Best default for regulated HIPAA/financial workflows.**
+- **`ANY_ORDER`**: Required tools can run in any sequence (e.g., fetching weather and store hours in parallel). **Dangerous for security gates** because calling `lookup_prescription_order` *before* `verify_patient_identity` would still score `1.0`!
+
+### ADK Evaluation vs. Agent Platform Gen AI Evaluation Service
+
+- **ADK Evaluation (`AgentEvaluator`, `adk eval`, `adk eval_set`, `adk test`):**
+  - Runs locally in pytest or CI containers against `.evalset.json` / `.test.json` files managed via `adk eval_set create`, `adk eval_set add_eval_case`, and `adk eval_set generate_eval_cases`.
+  - Can bridge to Vertex AI evaluators via `vertex_ai_eval_facade`.
+- **Agent Platform Gen AI Evaluation Service (`vertexai.evaluation.EvalTask`):**
+  - Managed cloud evaluation service integrated with Vertex AI Experiments, BigQuery, and Cloud Storage.
+  - **`PointwiseMetric`**: Scores a single model/agent output against a static or **Adaptive Rubric** (rubrics dynamically generated per prompt to test prompt-specific constraints at scale).
+  - **`PairwiseMetric`**: Compares **Model A (baseline)** vs. **Model B (candidate)** head-to-head and outputs win/tie/loss rates — the exam-standard answer when evaluating a model migration (e.g., moving from Pro to a fine-tuned Flash/Gemma tier).
+  - **`CustomMetric`**: Runs a deterministic Python function alongside cloud autoraters (e.g., regex checking zero raw SSNs/MRNs in outputs).
+  - **`hallucinations_v1`**: Evaluates groundedness of final and intermediate natural-language responses (`evaluate_intermediate_nl_responses=True`) against retrieved RAG/tool context.
 
 ## 4. The decision that matters
 
-| If you need... | Use | Why not the alternative |
+| Exam Scenario | Choose This Tooling & Criterion | Why the Alternatives Fail |
 | :--- | :--- | :--- |
-| Exact string matching for a known fixed answer | `final_response_match_v1` | LLM-as-judge is slower, more expensive, and overkill for exact matches. |
-| To check if tool execution was procedurally correct | `trajectory_evaluator` / `rubric_based_tool_use_quality_v1` | Final response metrics only check the answer, not *how* the agent got it (it could have hallucinated the answer without using the tool). |
-| Qualitative assessment of tone, helpfulness, or accuracy | `rubric_based_final_response_quality_v1` | Exact string match fails if the agent phrases the right answer slightly differently. |
-| Custom programmatic evaluation logic | `custom_metric_evaluator` | Built-in rubrics are LLM-backed; custom metrics allow deterministic Python assertions. |
+| Fast pull-request CI check ensuring `verify_patient_identity` always precedes `lookup_prescription_order`, even if optional helper tools run | **ADK `adk eval` + `ToolTrajectoryCriterion(match_type=IN_ORDER)`** | `EXACT` breaks on benign helper tools; `ANY_ORDER` misses the HIPAA sequence violation; `final_response_match_v1` ignores tool calls completely. |
+| Evaluating whether a healthcare support agent uses empathetic tone and refuses unverified PHI requests across open-ended prompts with no golden text | **ADK `RubricsBasedCriterion` (`rubric_based_final_response_quality_v1` + `rubric_based_tool_use_quality_v1`)** | Reference-based metrics (`Rouge` / `final_response_match_v1`) cannot run without pre-authored golden answers and fail on valid paraphrases. |
+| Comparing win-rate between `gemini-3.7-flash` and a candidate model across 5,000 historical customer tickets in BigQuery | **Agent Platform Gen AI Evaluation Service (`EvalTask` + `PairwiseMetric`)** | Local `adk eval` scores a single agent pointwise; `PairwiseMetric` directly measures head-to-head preference win rates at cloud scale with Vertex AI Experiments tracking. |
+| Auditing 5% of live production conversations daily for ungrounded claims and prompt-specific compliance | **Gen AI Evaluation Service (`EvalTask` + Adaptive Rubrics + `hallucinations_v1`)** | Live production traffic has no pre-written golden answers; Adaptive Rubrics + groundedness autoraters grade live traces reference-free. |
 
 ## 5. Hands-on A — offline (free)
 
@@ -53,36 +89,46 @@ graph LR
 ./tracks/04_evaluate_and_deploy/lab_13_agent_evaluation/run_lab.sh
 ```
 
-In the offline run, we mock the inference but validate the schema of the `AgentEvaluator` configuration and the `.evalset.json` files. The tests assert that the metric names correspond exactly to the available ADK 2.9.0 evaluators.
+The offline runner validates `.evalset.json` (`EvalSet`) and `config.json` (`EvalConfig`) against ADK 2.9.0's real Pydantic schemas, proves the difference between `EXACT`, `IN_ORDER`, and `ANY_ORDER` on a HIPAA pharmacy tool trajectory, instantiates `Rubric` + `RubricsBasedCriterion` with a distinct `JudgeModelOptions` model, and constructs a cloud `vertexai.evaluation.EvalTask` combining `PointwiseMetric`, `PairwiseMetric`, `CustomMetric`, and `Rouge`.
 
 ## 6. Hands-on B — live on Google Cloud (opt-in)
 
-Ensure you have credentials configured:
+Configure your project and API credentials:
+
 ```bash
 export GOOGLE_CLOUD_PROJECT="your-project-id"
 export GOOGLE_CLOUD_LOCATION="us-central1"
 ```
 
+Run the live ADK evaluator or CLI commands:
+
 ```bash
 ./tracks/04_evaluate_and_deploy/lab_13_agent_evaluation/run_lab.sh --live
+
+# Equivalent ADK CLI workflow:
+adk eval tracks/04_evaluate_and_deploy/lab_13_agent_evaluation \
+  tracks/04_evaluate_and_deploy/lab_13_agent_evaluation/.evalset.json \
+  --config_file_path=tracks/04_evaluate_and_deploy/lab_13_agent_evaluation/config.json \
+  --print_detailed_results
 ```
 
 > [!WARNING]
-> Cost note: This will execute LLM calls for both the agent generating responses and the judge model evaluating them. For a few eval cases, this will cost less than $0.05.
+> Cost note: Live evaluation invokes both the agent model (`gemini-3.7-flash`) and the autorater judge model (`gemini-3.8-flash` with `num_samples=3`). Running two eval cases costs less than $0.05.
 
 ## 7. Verify it worked
 
-1. Check that `.evalset.json` follows the `EvalSet` Pydantic schema (it must contain `eval_set_id` and `eval_cases`).
-2. Check that `config.json` sets thresholds for `rubric_based_final_response_quality_v1`.
-3. Check the CLI command `adk eval agent.py .evalset.json --config_file_path config.json` executes without schema errors.
+1. Confirm `.evalset.json` parses cleanly into `google.adk.evaluation.eval_set.EvalSet` with both a reference-backed trajectory case (`case_01_verified_hipaa_order_lookup`) and a reference-free rubric case (`case_02_unverified_caller_refusal`).
+2. Confirm `ToolTrajectoryCriterion` with `IN_ORDER` scores `1.0` when `check_weather_advisory` runs between `verify_patient_identity` and `lookup_prescription_order`, while scoring `0.0` if `lookup_prescription_order` is called before verification.
+3. Confirm `JudgeModelOptions.judge_model` (`gemini-3.8-flash`) differs from `AGENT_MODEL` (`gemini-3.7-flash`).
 
 ## 8. Troubleshooting
 
 | Symptom | Cause | Fix |
 | :--- | :--- | :--- |
-| `Not evaluated. No score was produced` | The judge model failed to return a valid structured response, or ran into quota errors. | Check Cloud Logging / traces to see if the judge model failed. Try a different judge model. |
-| Test passes despite incorrect tool usage | You are only using a final response metric, and the agent guessed the right answer. | Add `trajectory_evaluator` or `rubric_based_tool_use_quality_v1` to check the tool calls. |
-| `KeyError` on metric name | You used an invalid metric name string. | Use exact ADK metric keys (e.g. `final_response_match_v1`, `rubric_based_final_response_quality_v1`). |
+| `Not evaluated. No score was produced` (`EvalStatus.NOT_EVALUATED`) | Judge model hit Vertex AI quota limits, lacked permissions, or `expected_invocation` was omitted for a reference-required metric. | Use reference-free `rubric_based_final_response_quality_v1` when golden `final_response` is absent, or verify `roles/aiplatform.user` and quota for `judge_model`. |
+| CI trajectory test fails whenever the agent calls an extra read-only lookup tool | `ToolTrajectoryCriterion` defaults to `EXACT` matching. | Switch `match_type` in `config.json` from `"EXACT"` to `"IN_ORDER"`. |
+| Agent passes `final_response_match_v2` even though it guessed the order ETA without calling any tool | Final-response metrics inspect only the final text turn, ignoring `intermediate_data.tool_uses`. | Always pair response metrics with `tool_trajectory_avg_score` or `rubric_based_tool_use_quality_v1`. |
+| High variance in LLM-as-judge rubric scores across runs | Single-sample LLM autorating (`num_samples=1`) has sampling noise. | Set `num_samples` (e.g., `3` or `5`) inside `judge_model_options` and write atomic binary Yes/No rubrics instead of vague 1–10 scales. |
 
 ## 9. Clean up
 
@@ -92,22 +138,24 @@ export GOOGLE_CLOUD_LOCATION="us-central1"
 
 ## 10. Exam traps
 
-- **Agent vs. Judge Model:** The model doing the evaluating (`DEFAULT_JUDGE_MODEL`) should be at least as capable as the model being tested (`DEFAULT_AGENT_MODEL`). If you judge a Flash agent with that same Flash model, it will share the blind spots it is supposed to be catching — self-evaluation flatters. Judge with a stronger tier, or with a Pro-class reasoning model.
-- **Trajectory vs. Final Response:** The exam tests your ability to distinguish between testing the *result* and testing the *process*. Tool use quality and trajectory evaluation check the *process*.
+- **Metric vs. Rubric:** If the question states *"there is no single correct wording / no golden reference response, and you must enforce domain policy rules (such as HIPAA verification or financial disclaimers)"*, **eliminate deterministic string metrics (`Rouge`, `BLEU`, `final_response_match_v1`)** and select **Rubric-based evaluation (`RubricsBasedCriterion` / Adaptive Rubrics)**.
+- **`ANY_ORDER` Security Blind Spot:** Never choose `ANY_ORDER` when a security or authentication tool (`verify_patient_identity`) **must** execute prior to a data-access tool (`lookup_prescription_order`). Choose **`IN_ORDER`**.
+- **Self-Preference Bias in Autoraters:** Never use the exact same model to generate responses and judge them if a distinct/stronger judge model is available (`DEFAULT_JUDGE_MODEL` != `DEFAULT_AGENT_MODEL`).
+- **Pointwise vs. Pairwise on Model Upgrades:** When an exam question asks *"How do you decide whether migrating from Model X to a cheaper SLM degrades quality across 10,000 prompts?"*, choose **Gen AI Evaluation Service with `PairwiseMetric`** (win-rate comparison), not manual spot-checking or ROUGE.
 
 ## 11. Check yourself
 
 <details>
-<summary>1. You want to ensure an agent correctly calls the `get_inventory` tool and passes the parameter `item_id="123"` before responding. Which evaluator approach is best?</summary>
-Use a trajectory evaluator (`trajectory_evaluator` or `rubric_based_tool_use_quality_v1`). A final response evaluator will only check the final text, allowing the agent to pass if it hallucinates the right inventory count without using the tool.
+<summary>1. What is the core architectural difference between an ADK Metric (like `final_response_match_v1` or `ToolTrajectoryCriterion`) and an ADK Rubric (`RubricsBasedCriterion`)?</summary>
+A deterministic Metric is **reference-based** — it compares the agent's output or tool sequence against a pre-authored golden target in `.evalset.json`. A Rubric is **criterion-based (and works reference-free)** — an autorater LLM grades the agent's turn against decomposed natural-language pass/fail questions (`RubricContent.text_property`) without requiring fixed golden phrasing.
 </details>
 
 <details>
-<summary>2. How do you define custom success criteria for an LLM judge using ADK?</summary>
-Provide rubrics in your `EvalCase` or `config.json` and use a rubric-based metric like `rubric_based_final_response_quality_v1` to assess them.
+<summary>2. Your healthcare customer-support agent must call `verify_patient_identity` before `lookup_prescription_order`, and may optionally call `check_weather_advisory` in between. Which `ToolTrajectoryCriterion.MatchType` should you configure?</summary>
+`IN_ORDER`. `EXACT` would falsely fail whenever the optional `check_weather_advisory` tool is invoked, while `ANY_ORDER` would dangerously pass if `lookup_prescription_order` were called before `verify_patient_identity`.
 </details>
 
 <details>
-<summary>3. True or False: `adk eval` only supports LLM-as-judge evaluation.</summary>
-False. It supports programmatic determinism (like `final_response_match_v1`) as well as `custom_metric_evaluator` for arbitrary Python checks.
+<summary>3. When should you move from local `adk eval` to the Agent Platform Gen AI Evaluation Service (`vertexai.evaluation.EvalTask`)?</summary>
+When running large-scale batch evaluations over BigQuery/GCS datasets, computing head-to-head model upgrade win rates via `PairwiseMetric`, generating dynamic **Adaptive Rubrics** per prompt, or continuously evaluating sampled production traces in Vertex AI Experiments.
 </details>

@@ -1,4 +1,4 @@
-# Google Cloud Certified Professional Agentic Architect — High-Yield Practice Exam
+# Google Cloud Certified Professional Agentic Architect — 80-Question Practice Exam
 
 > [!IMPORTANT]
 > **Personal, unofficial repository.** This is a personal study project. It is **not
@@ -9,1635 +9,1637 @@
 > **[cloud.google.com/learn/certification/agentic-architect](https://cloud.google.com/learn/certification/agentic-architect)**.
 > See [`DISCLAIMER.md`](DISCLAIMER.md) for the full disclaimer.
 
-This unofficial practice set uses the objectives and domain weights in the official exam guide. It is a study aid, not a claim about the live exam's exact wording, length, or difficulty. A score of ≥80% across all domains indicates strong readiness for the live exam.
+> [!NOTE]
+> **Exam Format, Mid-November GA Launch & Test-Taking UI**:
+> - **Beta vs. GA Question Count**: This practice exam contains **80 multiple-choice and multiple-select questions**, matching the **~80-question Beta exam** format (3-hour window). **The Generally Available (GA) exam launches in mid-November and will have a lesser number of questions** (standard ~50–60 questions, 2-hour window).
+> - **Delivery**: Available **online-proctored** or **onsite-proctored** (testing center).
+> - **UI Strategy**: The live test interface provides **Mark for Review** and **Strike-through**. Practice mentally striking through distractors that violate least-privilege IAM (`roles/owner`, `roles/editor`, static JSON SA keys), sandbox safety (`UnsafeLocalCodeExecutor`), or protocol boundaries (using MCP for agent-to-agent delegation).
+> - **Beta Calibration**: Across the 5 official domains (**13% / 17% / 33% / 22% / 15%**), roughly **30–35% of questions** weave in **IAM roles, least-privilege permissions, Agent Identity, Principal Access Boundaries (PAB), Connector Auth, and cross-project access**, alongside heavy **customer support** and **HIPAA / regulated industry** scenarios.
 
 <details><summary><b>How to use this exam</b></summary>
-Answers are collapsed by default. Read the scenario, choose your answer, and expand the details block to check it. Every question explains why the correct answer is right and why the distractors are wrong in the context of the scenario.
+Answers are collapsed by default. Read the scenario, mentally strike through invalid distractors, choose your answer, and expand the details block to check it. Aim for <b>≥80% (64 / 80)</b> overall and ≥80% in every domain.
 </details>
 
 ---
 
-## Domain 1: Building Agents Using Low-Code Tools (~13%)
+## Domain 1: Building Agents Using Low-Code Tools (~13% · Questions 1–10)
 
 ### Question 1
-**Scenario**: Your retail organization wants to deploy an AI customer service agent using Gemini Enterprise low-code tools. The agent must guide customers through a 3-step order return process (Select Order -> Validate Reason -> Generate Return Label). If the customer provides an invalid tracking number twice, the agent must escalate the conversation to a human tier without crashing or losing session context.
+**Scenario**: Your retail organization is deploying an omnichannel customer support agent using **Customer Experience Agent Studio (`GECX` / CX Agent Studio)**. The agent must guide customers through a regulated 3-step order refund workflow (`Verify Identity -> Validate Return Reason -> Issue Refund`). Compliance rules require that every step execute in exact sequence, missing ZIP or order numbers be repeatedly prompted until provided, and two consecutive invalid tracking numbers deterministically escalate the session to a human support agent with full context preserved.
 
-**Which architectural configuration should you implement in CX Agent Studio?**
-- **A)** Create a single Page with an inline Python cloud function that maintains a retry counter in memory and triggers a webhook transition.
-- **B)** Configure dedicated Pages for each return stage, configure Transition Routes with parameter conditions, and implement an Event Handler for `sys.no-match-2` that transitions to an Agent Handoff page.
-- **C)** Use a single generative prompt template in Agent Designer and instruct the LLM in system instructions to count retries internally before generating an escalation message.
-- **D)** Configure an Agent Search data store linked to return policies and allow zero-shot intent classification to handle return routing dynamically.
+**Which configuration in CX Agent Studio (`GECX`) meets these requirements?**
+- **A)** Configure a **Deterministic Flow** with dedicated **Pages** for each stage, mark Order ID and ZIP as **Required Form parameters** with reprompt messages, use **Condition Transition Routes** (`$session.params.verified == true`), and attach a **`sys.no-match-2` Event Handler** transitioning to a Live Agent Handoff page.
+- **B)** Create a single probabilistic Generative Playbook in Agent Designer and instruct the LLM in system instructions to count invalid tracking numbers and refuse to skip steps.
+- **C)** Upload the refund policy PDF to Agent Search and set model temperature to `0.0` so zero-shot generation follows the 3 steps automatically.
+- **D)** Write an inline webhook using static Service Account JSON keys to track retry counts in a global Python dictionary.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: In CX Agent Studio (formerly Dialogflow CX), state-based multi-step workflows are modeled using **Pages** and **Transition Routes**. Built-in **Event Handlers** (like `sys.no-match-2` or `sys.no-input-2`) automatically manage error counts and trigger deterministic transitions to an escalation/handoff page while preserving all session parameters. → Lab 02 — CX Agent Studio State.
-- **Why A is incorrect**: Maintaining retry counters in custom webhook memory introduces unnecessary complexity and breaks the declarative state machine paradigm of CX Agent Studio.
-- **Why C is incorrect**: Relying solely on LLM system instructions to count retries is non-deterministic and prone to hallucinations and reasoning loops.
-- **Why D is incorrect**: Agent Search is designed for RAG over unstructured documents, not for managing stateful multi-step business transactions.
+- **Why A is correct**: In **CX Agent Studio (`GECX`)**, regulated step-by-step customer support processes require **Deterministic Flows**: **Pages** represent states, **Required Form parameters** handle slot-filling loops, **Transition Routes** enforce deterministic state branching, and **`sys.no-match-2` Event Handlers** guarantee escalation after exactly two invalid inputs while preserving session parameters. → Lab 02 — CX Agent Studio State.
+- **Why B and C are incorrect**: Generative Playbooks and `temperature=0.0` remain probabilistic; LLMs can miscount retries or skip mandatory verification steps under adversarial input.
+- **Why D is incorrect**: Static JSON keys and in-memory webhook counters violate both declarative state management and IAM security best practices.
 </details>
 
 ---
 
 ### Question 2
-**Scenario**: An insurance company needs an agent in Gemini Enterprise that can ingest user-uploaded claims consisting of a PDF repair estimate, photos of vehicle damage, and a voice recording of the accident description. The agent must summarize the incident and verify if the damage photos match the written description.
+**Scenario**: A telecommunications company is redesigning its customer support virtual agent in **CX Agent Studio (`GECX`)**. Customers start conversations with open-ended, unstructured troubleshooting questions (e.g., *"My fiber router blinks orange whenever it rains"*), which require synthesizing troubleshooting articles. However, if the customer asks to **upgrade their billing plan or process an equipment replacement**, compliance mandates a strict identity check and PCI-compliant confirmation flow.
 
-**How should you configure the multimodal data ingestion pipeline?**
-- **A)** Convert the audio recording using Speech-to-Text API, run Vision API on the photos for OCR, extract text from the PDF using Document AI, and pass combined text strings into a Gemini 2.5 Flash-Lite model.
-- **B)** Upload the PDF, damage photos, and audio files directly into Cloud Storage, and provide their GCS URIs in a single multimodal prompt payload to Gemini 3.7 Flash within Gemini Enterprise Agent Designer.
-- **C)** Embed the audio and images into a Vector Search index and use text search to retrieve the nearest matching insurance policy clauses.
-- **D)** Ingest the data into BigQuery using BigQuery ML, and train a supervised classification model to evaluate the insurance claim.
+**Which GECX architectural pattern should you choose?**
+- **A)** A pure Deterministic Flow creating hundreds of rigid Intent Pages for every possible router LED blinking pattern.
+- **B)** A pure Probabilistic Generative Playbook handling both router troubleshooting and PCI billing upgrades via natural-language prompt instructions.
+- **C)** A **Hybrid Flow architecture**: use a **Probabilistic Generative Playbook** grounded on **Agent Search** for open-ended troubleshooting and triage, which deterministically transitions into a **GECX Deterministic Flow Page** whenever a billing upgrade or replacement action is triggered.
+- **D)** Deploy two disconnected chatbots with separate web URLs and ask customers to copy-paste their chat transcript between windows.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: C**
 **Explanation**:
-- **Why B is correct**: Gemini 3.7 Flash natively supports multimodal reasoning across audio, high-resolution images, video, and PDF documents within a single context window. Referencing Cloud Storage URIs (`gs://...`) directly in the multimodal prompt eliminates complex multi-pipeline preprocessing and preserves rich cross-modal relationships. → Lab 03 — Enterprise Data and Multimodal.
-- **Why A is incorrect**: Splitting the workflow into disparate APIs strips cross-modal nuance and increases latency and cost.
-- **Why C is incorrect**: Vector embedding alone cannot perform multi-modal comparative reasoning across image damage and text repair quotes.
-- **Why D is incorrect**: Training a custom BigQuery ML model requires labeled training datasets and does not provide generative reasoning.
+- **Why C is correct**: **GECX Hybrid Flows** combine the flexibility of **Generative Playbooks** (handling open-ended troubleshooting grounded in Agent Search) with the auditability of **Deterministic Flows** (Pages, Form parameters, and deterministic Transition Routes) for regulated financial or account-mutating steps, sharing a single session state. → Lab 01 & Lab 02.
+- **Why A is incorrect**: Enumerating every open-ended troubleshooting permutation in static intents causes state explosion and high maintenance overhead.
+- **Why B is incorrect**: Executing regulated PCI plan changes purely via probabilistic prompt instructions lacks deterministic slot and state enforcement.
+- **Why D is incorrect**: Breaks conversational continuity and session state.
 </details>
 
 ---
 
 ### Question 3
-**Scenario**: A healthcare provider wants to build a symptom-checking agent using Agent Designer. The agent must strictly follow a decision tree based on clinical guidelines, ensuring it never hallucinates a diagnosis or skips mandatory triage questions. 
+**Scenario**: You are rolling out **Gemini Enterprise (`GEApp`)** as the unified assistant workspace for 25,000 employees. You must connect two enterprise systems:
+1. **Confluence & Google Drive** (5 million documents) so employees can run fast semantic searches while strictly seeing **only** documents their corporate identity has ACL permission to view.
+2. **Jira** so an employee can tell the assistant *"Create a P1 incident ticket assigned to my team"*, and Jira records the **specific logged-in employee** (not a shared bot account) as the ticket reporter.
 
-**Which approach provides the strongest guarantee of adherence to the decision tree in a low-code environment?**
-- **A)** Use a zero-shot prompt in Agent Designer with a long list of clinical rules and constraints.
-- **B)** Configure a workflow in CX Agent Studio using explicit Pages, state parameters, and Transition Routes for each branch of the clinical decision tree.
-- **C)** Upload the clinical guidelines PDF to Agent Search and rely on semantic retrieval to guide the LLM's responses.
-- **D)** Use Gemini 2.5 Pro with a temperature of 0.0 and a custom few-shot prompt template outlining the tree.
+**Which dual connector authentication design should you configure?**
+- **A)** Configure **ACL-aware ingestion sync** using a dedicated Connector Service Account + **Workforce Identity Federation** for Confluence/Drive in **Agent Search**, and configure **real-time 3-legged OAuth 2.0 (3LO)** via **Auth Manager** (`IAMConnectorCredentialsServiceClient`) for Jira action execution.
+- **B)** Configure a single Jira Administrator API token shared by all 25,000 employees and disable ACL sync on Confluence.
+- **C)** Download a Service Account JSON key with `roles/owner` and embed it inside an Agent Designer prompt template.
+- **D)** Force all 5 million Confluence pages through 3LO per-file user consent popups on every search query without indexing.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: CX Agent Studio's state machine (Pages, Parameters, Transition Routes) enforces deterministic workflows. When absolute adherence to a business or clinical process is required, state-based routing is mandatory over generative approaches. → Lab 02 — CX Agent Studio State.
-- **Why A is incorrect**: LLMs, even with long system instructions, are probabilistic and can skip steps or hallucinate, which is unacceptable for strict clinical triage.
-- **Why C is incorrect**: Agent Search provides grounding for knowledge retrieval but does not enforce a step-by-step conversational state machine.
-- **Why D is incorrect**: Temperature 0.0 reduces variance but does not guarantee the LLM will reliably navigate a complex multi-step decision tree without skipping or looping.
+- **Why A is correct**: Enterprise connectors in **Gemini Enterprise (`GEApp`)** separate **read/search indexing** (Connector Service Account + Workforce Identity Federation syncing Document-Level ACLs into **Agent Search**) from **transactional write actions** (**Auth Manager** + `IAMConnectorCredentialsServiceClient` executing 3-legged OAuth 2.0 consent so mutations run under the human user's identity and audit trail). → Lab 03 — Enterprise Data and Multimodal.
+- **Why B and C are incorrect**: Shared admin tokens, `roles/owner`, and static JSON keys cause cross-user data leakage and destroy per-user audit attribution.
+- **Why D is incorrect**: Real-time unindexed crawling cannot search 5M documents at interactive latency.
 </details>
 
 ---
 
 ### Question 4
-**Scenario**: You are using Gemini Enterprise Agent Designer to prototype an IT helpdesk agent. The agent frequently fails to extract the correct device MAC address format from user messages. You want to improve its extraction accuracy without migrating to a custom code solution or changing the underlying model.
+**Scenario**: An insurance carrier is building a claims triage agent in **Gemini Enterprise Agent Designer**. Claimants upload a PDF repair estimate, smartphone photos of bumper damage, and a 4-minute MP4 video walkthrough with spoken narration into a Cloud Storage bucket (`gs://claims-intake-prod/`). The agent must cross-check whether the spoken narration, visual damage, and PDF line items agree, while following **least-privilege IAM** on the bucket and Vertex AI.
 
-**What is the most effective low-code mechanism to improve this behavior?**
-- **A)** Add several few-shot examples (user messages and expected MAC address outputs) into the in-console prompt template.
-- **B)** Switch the agent's model to Gemini 2.5 Flash-Lite to reduce token parsing latency.
-- **C)** Upload a CSV of all employee MAC addresses to Agent Search.
-- **D)** Configure a webhook to call an external Python script that uses regex to find the MAC address.
+**Which ingestion design and IAM role binding should you implement?**
+- **A)** Pass the `gs://` URIs for the PDF, photos, and MP4 video directly in a single multimodal request to **`gemini-3.7-flash`**, and grant the agent's identity **`roles/storage.objectViewer`** (scoped to `claims-intake-prod`) plus **`roles/aiplatform.user`**.
+- **B)** Split the files across Speech-to-Text, Vision OCR, and Document AI, concatenate the text into `gemini-2.5-flash-lite`, and grant `roles/storage.admin` + `roles/owner`.
+- **C)** Strip the audio track with `ffmpeg` and pass frames to `gemma-4-31b-it` using a downloaded Service Account JSON key.
+- **D)** Load the raw MP4 bytes into `gemini-embedding-2` (8,192-token text embedding model) to generate a written claim summary.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: In-console prompt templates support few-shot prompting, which is highly effective for teaching the model specific data extraction patterns (like MAC addresses) without writing custom code or external regex. → Lab 01 — Agent Designer Workflows.
-- **Why B is incorrect**: Switching to a Flash-Lite model prioritizes speed over reasoning capability and is likely to decrease extraction accuracy further.
-- **Why C is incorrect**: Uploading a CSV to Agent Search provides grounding data but does not teach the LLM the pattern-matching skill required to extract the entity from the user's utterance.
-- **Why D is incorrect**: While effective, creating and maintaining an external Python webhook violates the constraint of improving behavior "without migrating to a custom code solution".
+- **Why A is correct**: `gemini-3.7-flash` (1M token window) natively reasons across PDFs, images, audio, and MP4 video simultaneously via `gs://` URIs, preserving temporal/visual alignment. Scoping `roles/storage.objectViewer` to the specific bucket and `roles/aiplatform.user` to the project enforces strict least privilege. → Lab 03 — Enterprise Data and Multimodal.
+- **Why B is incorrect**: Separate APIs lose cross-modal synchronization and `roles/storage.admin` + `roles/owner` severely over-privilege the agent.
+- **Why C is incorrect**: Stripping audio loses spoken narration, and static JSON keys are an IAM anti-pattern.
+- **Why D is incorrect**: `gemini-embedding-2` produces embeddings, not generative cross-modal reasoning.
 </details>
 
 ---
 
 ### Question 5
-**Scenario**: Your marketing team uses Gemini Enterprise to build an agent that generates ad copy. They want the agent to automatically reference the company's 200-page brand guidelines PDF so it consistently uses the correct tone and vocabulary. The marketing team has no coding experience.
+**Scenario**: A hospital network subject to **HIPAA** is building a low-code **patient support agent** in **CX Agent Studio (`GECX`)** and **Gemini Enterprise (`GEApp`)** to answer post-discharge care questions from approved clinical leaflets and schedule follow-up appointments.
 
-**How should you integrate the brand guidelines?**
-- **A)** Instruct the team to paste the 200-page PDF text directly into the system instructions.
-- **B)** Configure an Agent Search data store, upload the brand guidelines PDF, and connect the data store to the agent in the console.
-- **C)** Convert the PDF into a JSON schema and upload it as a parameter constraint in CX Agent Studio.
-- **D)** Write a Python script using the ADK to parse the PDF and inject it into the memory bank.
+**Which low-code architecture satisfies HIPAA compliance and least privilege?**
+- **A)** Deploy inside a **BAA-covered** Google Cloud project protected by **VPC Service Controls** and **CMEK**, screen patient inputs/outputs with **Model Armor + Sensitive Data Protection (`SdpAdvancedConfig`)**, ground clinical FAQs exclusively on an **Agent Search** data store (`roles/discoveryengine.viewer`), and handle appointment booking via a **Deterministic GECX Flow** with zero raw PHI logging.
+- **B)** Use an ungrounded zero-shot prompt in a personal Gmail consumer account and log full patient chat transcripts to a public Cloud Storage bucket for debugging.
+- **C)** Paste 800 pages of patient EHR records into the Agent Designer system instructions so every patient session shares the same prompt cache.
+- **D)** Grant `allAuthenticatedUsers` `roles/discoveryengine.admin` on the clinical data store so patients can query leaflets without authentication.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Connecting an Agent Search (formerly Vertex AI Search) data store provides out-of-the-box, low-code Retrieval-Augmented Generation (RAG). The agent automatically queries the index and grounds its responses in the uploaded PDF. → Lab 03 — Enterprise Data and Multimodal.
-- **Why A is incorrect**: Pasting 200 pages into system instructions consumes massive amounts of the context window, increases per-turn latency, and makes the prompt unmanageable.
-- **Why C is incorrect**: A JSON schema defines data structures, not semantic tone and vocabulary rules.
-- **Why D is incorrect**: Writing a custom ADK Python script violates the requirement that the solution accommodate a team with no coding experience.
+- **Why A is correct**: Regulated **HIPAA customer support agents** require BAA-eligible services inside VPC-SC + CMEK, **Model Armor + SDP** to redact unintended PHI, grounded retrieval (`roles/discoveryengine.viewer`) to prevent clinical fabrication, and **Deterministic GECX Flows** for scheduling mutations without capturing PHI in telemetry logs. → Lab 01, Lab 02 & Lab 03.
+- **Why B, C, and D are incorrect**: Consumer accounts lack a HIPAA BAA, pasting EHR data into shared system instructions leaks PHI across patients, and `allAuthenticatedUsers` exposes data to every Google account on Earth!
 </details>
 
 ---
 
 ### Question 6
-**Scenario**: You are testing a low-code agent in CX Agent Studio that collects a user's address for shipping. Users often provide incomplete addresses (e.g., missing the ZIP code). 
+**Scenario**: Your IT helpdesk team uses **Gemini Enterprise Agent Designer** to triage laptop tickets. Users write messy messages containing serial numbers in inconsistent formats, and the agent frequently extracts malformed asset tags. The helpdesk team has zero Python coding experience and cannot change models.
 
-**How do you configure the agent to repeatedly prompt the user until a complete address is collected, without writing code?**
-- **A)** Set the LLM temperature to 1.0 so it creatively asks for the ZIP code in different ways.
-- **B)** Define a Form parameter for the ZIP code on the Page, mark it as Required, and configure parameter-level prompt messages to ask for the missing information.
-- **C)** Create a new Page for every possible combination of missing address fields.
-- **D)** Enable Agent Search to look up the user's ZIP code based on their street name.
+**What is the most effective low-code improvement in Agent Designer?**
+- **A)** Add structured **few-shot examples** (diverse messy user inputs paired with exact extracted asset-tag outputs) and explicit **chain-of-thought** formatting steps inside the in-console prompt template.
+- **B)** Deploy a custom GKE cluster with `GkeCodeExecutor` to compile regexes dynamically.
+- **C)** Increase model temperature to `1.5` to encourage creative tag extraction.
+- **D)** Grant the agent `roles/iam.securityAdmin` so it can look up IAM bindings instead.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: CX Agent Studio uses **Form parameters** to handle slot-filling. By marking a parameter as Required and providing prompt messages, the agent will automatically loop and ask the user for the specific missing data until the form is complete. → Lab 02 — CX Agent Studio State.
-- **Why A is incorrect**: Increasing temperature only increases randomness in generation; it does not enforce a structured data collection loop.
-- **Why C is incorrect**: Creating a Page for every combination of missing fields leads to an explosion of states and an unmaintainable graph.
-- **Why D is incorrect**: Agent Search retrieves documents; it cannot definitively geolocate a user based solely on an incomplete street address without a City/State.
+- **Why A is correct**: Objective 1.1 explicitly tests *"Creating system instructions and in-console prompt templates (e.g., few-shot and chain-of-thought) to guide agent behavior"*. Few-shot examples teach exact entity formatting in low-code without custom webhooks or code. → Lab 01 — Agent Designer Workflows.
+- **Why B is incorrect**: Violates the no-code requirement.
+- **Why C and D are incorrect**: High temperature increases formatting variance, and IAM admin roles are unrelated and unsafe.
 </details>
 
 ---
 
 ### Question 7
-**Scenario**: A media company wants to build a video summarization agent using Gemini Enterprise. Users will upload MP4 video files up to 30 minutes long. The agent must describe the visual events and transcribe key spoken quotes simultaneously.
+**Scenario**: A runtime customer support agent deployed in Project `support-runtime-prod` needs **read-only search access** to an **Agent Search** (Discovery Engine) enterprise knowledge data store hosted in Project `knowledge-hub-prod`. It must **never** be able to delete documents, modify schemas, or reconfigure connectors.
 
-**Which model and ingestion method is best suited for this low-code workflow?**
-- **A)** Gemini 3.5 Transcribe to convert the audio, and Vision API to extract frames every 5 seconds.
-- **B)** Gemini 3.7 Flash passing the MP4 file URI directly in the prompt for native multimodal processing.
-- **C)** Gemini Omni Flash Preview, stripping the audio with ffmpeg before sending to the API.
-- **D)** Gemma 4 31B IT running in a self-hosted environment to ensure the video remains private.
+**Which predefined IAM role should you grant to the support agent's identity on `knowledge-hub-prod`?**
+- **A)** `roles/discoveryengine.viewer`
+- **B)** `roles/discoveryengine.admin`
+- **C)** `roles/discoveryengine.editor`
+- **D)** `roles/editor`
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Gemini 3.7 Flash natively supports video ingestion directly via a Cloud Storage URI. It processes both the visual frames and the audio track concurrently within the same context window, making it perfect for describing visual events and transcribing quotes without custom preprocessing pipelines. → Lab 03 — Enterprise Data and Multimodal.
-- **Why A is incorrect**: Splitting the video into separate audio transcription and frame extraction APIs destroys the temporal synchronization between what is seen and what is said.
-- **Why C is incorrect**: Stripping the audio with ffmpeg would prevent the agent from transcribing key spoken quotes, failing the requirements.
-- **Why D is incorrect**: Gemma models are text-in/text-out (or image-in/text-out for multimodal variants), but they do not natively process 30-minute MP4 video files with audio.
+- **Why A is correct**: `roles/discoveryengine.viewer` grants least-privilege read/query (`servingConfigs.search` / `answer`) access to Agent Search / Gemini Enterprise data stores without allowing document ingestion, deletion, or connector administration. → Lab 03 — Enterprise Data and Multimodal.
+- **Why B, C, and D are incorrect**: `editor` and `admin` roles allow mutating or deleting indexed enterprise data stores, violating least privilege.
 </details>
 
 ---
 
 ### Question 8
-**Scenario**: A regional bank is using Agent Designer to prototype a loan assistant. The agent needs to politely decline any queries about credit scores, as the bank uses a separate system for that. 
+**Scenario**: While testing a **Gemini Enterprise (`GEApp`)** action connector backed by `google.cloud.iamconnectorcredentials_v1alpha.IAMConnectorCredentialsServiceClient`, your agent calls `RetrieveCredentialsRequest(connector=..., user_id="alice@corp.com", scopes=["jira:write"], continue_uri="https://app.corp.com/callback")`. Because Alice has never used the Jira connector before, no OAuth refresh token exists yet.
 
-**What is the most direct way to enforce this boundary in the low-code Agent Designer?**
-- **A)** Implement an A2A protocol handoff to a separate Credit Score Agent.
-- **B)** Add explicit negative constraints to the System Instructions (e.g., "Do not answer questions about credit scores. Instead, say 'Please visit the credit portal.'").
-- **C)** Deploy Model Armor and configure a custom regex filter for "credit score".
-- **D)** Use CX Agent Studio to build a state machine with a transition route triggered by a "credit_score" intent.
-
-<details><summary>Show answer</summary>
-
-**Correct Answer: B**
-**Explanation**:
-- **Why B is correct**: In Agent Designer, the System Instructions are the primary mechanism for setting behavioral boundaries. Explicit negative constraints (telling the model what *not* to do and what to do instead) are highly effective for simple topical boundaries. → Lab 01 — Agent Designer Workflows.
-- **Why A is incorrect**: A2A is a complex developer protocol for custom coded agents, not a feature of the low-code Agent Designer.
-- **Why C is incorrect**: While Model Armor can block topics, using System Instructions is the more direct and appropriate first line of defense for conversational routing, rather than triggering a security block.
-- **Why D is incorrect**: While CX Agent Studio is powerful, the question specifically asks for the most direct way *in Agent Designer*.
-</details>
-
-## Domain 2: Using Coding Agents for Application Development (~17%)
-
-### Question 9
-**Scenario**: Your engineering team is adopting Google Antigravity to build autonomous coding agents that refactor legacy Java services into Python Cloud Run microservices. The agent needs to execute shell commands, run test suites, and install dependencies, but enterprise security policy strictly prohibits agents from making unvetted outbound internet connections or accessing corporate secrets on the host machine.
-
-**How should you configure the Antigravity execution environment?**
-- **A)** Run Antigravity in Standard Sandbox Mode with GKE Sandbox (gVisor container runtime) and workspace directory boundaries.
-- **B)** Grant Antigravity `BypassSandbox: true` and configure OS-level firewall iptables rules on the developer's laptop.
-- **C)** Run Antigravity inside a local Docker container with root privileges and mount the entire `/Users/` directory.
-- **D)** Restrict the Antigravity agent to read-only tools and manually copy-paste code suggestions into the IDE.
+**How does the Connector Credentials service respond so the agent can complete authorization safely?**
+- **A)** It returns metadata indicating **`uri_consent_required` / `consent_pending`** with an authorization consent URL so the UI prompts Alice to complete the **3-legged OAuth 2.0** flow before retrying the tool call.
+- **B)** It automatically falls back to the organization's root Google Cloud Organization Admin credential.
+- **C)** It scrapes Alice's plaintext password from Active Directory logs.
+- **D)** It permanently bans `alice@corp.com` via a Principal Access Boundary.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: Standard Sandbox Mode in Antigravity enforces workspace directory confinement and disables arbitrary network calls. Combining this with GKE Sandbox (using gVisor kernel isolation) provides enterprise-grade isolation for untrusted code execution and automated testing. → Lab 05 — Secure Sandboxes.
-- **Why B is incorrect**: `BypassSandbox: true` disables sandbox isolation and requires manual approval for every command, which is risky and degrades developer velocity.
-- **Why C is incorrect**: Mounting `/Users/` with root privileges violates the principle of least privilege and exposes personal credentials.
-- **Why D is incorrect**: Read-only mode prevents the agent from running automated refactoring and test suites autonomously.
+- **Why A is correct**: `IAMConnectorCredentialsServiceClient` (`RetrieveCredentialsRequest`) manages per-user 3LO credentials cleanly: when a user has not yet granted OAuth scopes, the response signals `uri_consent_required` / `consent_pending` so the client surfaces a consent link (`continue_uri`) and finalizes the user-scoped token via `FinalizeCredentialsRequest`. → Lab 03 & Lab 16.
+- **Why B, C, and D are incorrect**: Falling back to admin credentials or scraping passwords breaks user-scoped OAuth security, and PAB does not ban users on missing OAuth tokens.
+</details>
+
+---
+
+### Question 9
+**Scenario**: A retail bank builds a low-code loan-inquiry assistant in **Agent Designer**. Regulatory policy forbids the assistant from giving credit-score repair advice and requires it to redirect any credit-score question to the bank's dedicated credit portal.
+
+**What is the most direct first-line control in Agent Designer, and when must you add CX Agent Studio or Model Armor alongside it?**
+- **A)** Add explicit negative constraints and fallback phrasing in Agent Designer's **System Instructions** for routine topical redirection, and layer **Model Armor** (`ModelArmorConfig`) if adversarial jailbreak resistance is required.
+- **B)** Train a new foundation model from scratch without the word "credit" in its vocabulary.
+- **C)** Replace Agent Designer with Cloud CDN rules.
+- **D)** Set `max_output_tokens=5` so the agent cannot form complete sentences.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: System Instructions establish polite topical scope in Agent Designer, while **Model Armor** provides deterministic safety/jailbreak enforcement outside the prompt context when adversarial compliance guarantees are required. → Lab 01 & Lab 17.
+- **Why B, C, and D are incorrect**: Pre-training from scratch is prohibitive, Cloud CDN is an HTTP asset cache, and truncating output breaks all legitimate loan answers.
 </details>
 
 ---
 
 ### Question 10
-**Scenario**: You are developing an enterprise Antigravity plugin for your cloud operations team. You want the coding agent to automatically follow Google Cloud security best practices whenever a developer opens a Terraform file (`*.tf`), but you want the Terraform linting instructions loaded into the context window *only* when Terraform files are being edited to conserve prompt tokens.
+**Scenario**: In **CX Agent Studio (`GECX`)**, a customer is mid-way through filling out a 4-parameter `ScheduleAppointment` Page (`date`, `time`, `clinic_location`, `insurance_plan`). After providing `date` and `time`, the customer suddenly asks an off-script question: *"By the way, is parking free at the downtown clinic?"*
 
-**Which customization mechanism in Antigravity should you implement?**
-- **A)** Add global system instructions in `~/.gemini/config/GEMINI.md` with `always_on: true`.
-- **B)** Create a custom skill in `.agents/skills/terraform-lint/SKILL.md` and define an agent rule with `trigger: model_decision` or directory pattern matching.
-- **C)** Write a bash script that runs `terraform fmt` in a cron schedule using the schedule tool.
-- **D)** Hardcode Terraform rules into the agent's Python SDK client configuration before each conversation turn.
+**How should you configure GECX so the agent answers the parking question accurately from hospital documents AND seamlessly resumes collecting `clinic_location` and `insurance_plan`?**
+- **A)** Enable a **Knowledge / Agent Search Data Store handler** (or generative fallback) on the Page/Flow with session state preserved, so the agent answers the grounded FAQ and automatically re-prompts for the next missing **Required Form parameter** (`clinic_location`).
+- **B)** Trigger `sys.no-match-default` to wipe `$session.params` and terminate the phone call.
+- **C)** Force the user to restart from the beginning whenever an intent does not match a date string.
+- **D)** Disable Required Form parameters and hope the user remembers to mention their insurance plan later.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Antigravity uses progressive disclosure for **Skills** and **Rules**. By creating a skill with a YAML frontmatter and scoping rules to file triggers/model decisions, Antigravity injects the full skill instructions only when relevant files are touched, preserving context window tokens and minimizing costs. → Lab 06 — Antigravity Customization.
-- **Why A is incorrect**: Setting `always_on: true` in global configuration injects the rules into every turn regardless of file type, bloating token usage.
-- **Why C is incorrect**: A cron schedule does not guide the agent's contextual generation during code authoring.
-- **Why D is incorrect**: Hardcoding rules into client code prevents modular sharing across team repositories.
+- **Why A is correct**: Linking **Agent Search** data stores to a **GECX Page/Flow** enables grounded FAQ digressions while the Page's **Form** state machine retains already-collected `$session.params` (`date`, `time`) and automatically resumes prompting for the remaining required slots (`clinic_location`, `insurance_plan`). → Lab 02 & Lab 03.
+- **Why B, C, and D are incorrect**: Wiping session state frustrates customers, and removing required form slots breaks deterministic appointment booking.
 </details>
 
 ---
 
-### Question 11
-**Scenario**: A developer uses a coding agent powered by Antigravity to patch a recently discovered SQL injection vulnerability in a Go web application. The developer wants the agent to dynamically query the live staging database schema to ensure the new parameterized queries match the table structure before writing the fix. 
+## Domain 2: Using Coding Agents for Application Development (~17% · Questions 11–24)
 
-**How should the agent access the staging database?**
-- **A)** Pass the database password in the chat window so the agent can write a temporary Go script to print the schema.
-- **B)** Configure a Model Context Protocol (MCP) server for PostgreSQL and authorize the coding agent to connect to it.
-- **C)** Grant the agent IAM Organization Administrator privileges so it can read all Cloud SQL instances via the Resource Manager API.
-- **D)** Run the agent in `UnsafeLocalCodeExecutor` mode and allow it to download a SQL client binary from the internet.
+### Question 11
+**Scenario**: Your security engineering team wants **deterministic, non-bypassable enforcement** in **Antigravity** across a monorepo so that:
+1. Any attempt by the coding agent to execute `rm -rf`, `gcloud projects delete`, or `terraform destroy` via `run_command` is **hard-blocked** before execution with an explanation returned to the model.
+2. Whenever the agent edits a Python file, `ruff check` runs automatically afterward.
+3. The agent is **prevented from ending its turn** if the unit test suite (`pytest -q`) is currently failing.
+
+**Which Antigravity customization file and lifecycle events should you configure?**
+- **A)** Configure **`.agents/hooks.json`** with a **`PreToolUse`** hook (`matcher: "run_command"`, returning camelCase JSON `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "..."}}`), a **`PostToolUse`** hook (`matcher: "write_to_file|replace_file_content"`) running `ruff`, and a **`Stop`** hook returning `{"decision": "block", "reason": "pytest failed"}` when tests fail.
+- **B)** Write *"Please never run destructive commands and always run pytest"* inside `GEMINI.md` and trust the LLM with 100% compliance.
+- **C)** Add a `description` field to `skills.json` without any hooks or policies.
+- **D)** Set `temperature=0.0` in `mcp_config.json`.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Model Context Protocol (MCP) servers safely expose external resources (like database schemas) and tools to coding agents. It provides a standardized, permission-scoped interface without hardcoding credentials in prompts or running untrusted binaries. → Lab 04 — MCP and Tooling.
-- **Why A is incorrect**: Pasting passwords into chat windows risks logging them in telemetry and prompt histories.
-- **Why C is incorrect**: Organization Administrator is a massive over-permissioning violation of least privilege.
-- **Why D is incorrect**: `UnsafeLocalCodeExecutor` provides zero isolation and allows arbitrary untrusted binary execution, posing a severe security risk.
+- **Why A is correct**: In Antigravity, **`.agents/hooks.json`** executes deterministic shell gates outside the LLM's probabilistic reasoning: **`PreToolUse`** inspects camelCase `toolInput` on `stdin` and enforces `"deny"` / `"force_ask"` / `"overwrite"`, **`PostToolUse`** runs linters after file edits, and **`Stop`** (`"decision": "block"`) prevents premature task completion until tests pass. → Lab 06 — Antigravity Customization.
+- **Why B and C are incorrect**: `GEMINI.md` and `SKILL.md` are prompt-level instructions, not deterministic execution gates.
+- **Why D is incorrect**: `mcp_config.json` configures MCP servers, not model temperature or command hooks.
 </details>
 
 ---
 
 ### Question 12
-**Scenario**: Your platform team is standardizing on the Agents CLI to manage custom subagents for different microservices. You have created a specialized subagent that writes unit tests for frontend React components. You want to make this subagent available to the primary coding agent.
+**Scenario**: Your platform team is authoring Antigravity customizations for a 400-engineer polyglot repository containing Go services, React frontends, Terraform (`**/*.tf`), and complex database-migration runbooks (with helper Python scripts). You want to **minimize context-window token usage** on every turn while keeping repo-wide architecture overview always visible.
 
-**How do you integrate this subagent using Antigravity and the Agents CLI?**
-- **A)** Register the subagent in the Agent Registry and configure the primary agent to use the Agent2Agent (A2A) protocol for handoffs.
-- **B)** Place the subagent configuration in the `.agents/agents/` directory of the workspace and rely on the local Antigravity orchestrator to discover it.
-- **C)** Merge the React subagent's prompt directly into the primary agent's global system prompt.
-- **D)** Deploy the subagent to Cloud Run and instruct the primary agent to use `curl` to send HTTP requests to it.
+**How should you partition instructions across `GEMINI.md` (`AGENTS.md`), `.agents/rules/*.md`, and `.agents/skills/*/SKILL.md`?**
+- **A)** Keep **`GEMINI.md` / `AGENTS.md`** concise for repo-wide always-on context; put language/IaC-specific standards in **`.agents/rules/*.md`** with `trigger: glob` (e.g., `**/*.tf`) or `trigger: model_decision`; and package multi-step migration workflows + `scripts/` into **`.agents/skills/<name>/SKILL.md`** (indexed via `skills.json`) for **L1 → L2 → L3 progressive disclosure**.
+- **B)** Paste all 80 pages of Go, React, Terraform, and migration scripts into the root `GEMINI.md` so every turn pays 120,000 input tokens.
+- **C)** Put YAML `trigger: glob` frontmatter at the top of `GEMINI.md` (which ignores frontmatter and loads unconditionally).
+- **D)** Store coding guidelines inside `.evalset.json` files.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: In Antigravity (a local coding agent environment), local subagents are discovered automatically by placing their configuration in the `.agents/agents/` directory. The primary agent can then dynamically invoke them as tools when needed. → Lab 06 — Antigravity Customization.
-- **Why A is incorrect**: While A2A and Agent Registry are correct for cloud-deployed custom ADK agents (Section 3.3), Antigravity coding agents orchestrate local subagents via workspace directory discovery.
-- **Why C is incorrect**: Merging prompts degrades performance through token bloat and violates the principle of separation of concerns (specialized subagents).
-- **Why D is incorrect**: Using `curl` is a brittle, unstructured workaround compared to native subagent invocation.
+- **Why A is correct**: Antigravity separates **always-on hierarchical context** (`GEMINI.md` / `AGENTS.md`, plain Markdown with no frontmatter) from **conditionally triggered rules** (`.agents/rules/*.md` using `trigger: glob | model_decision | manual`) and **3-level progressive-disclosure skills** (`SKILL.md` frontmatter L1 → Markdown instructions L2 → `scripts/` & `references/` L3). → Lab 06 — Antigravity Customization.
+- **Why B and C are incorrect**: Bloating `GEMINI.md` wastes tokens and degrades attention; `GEMINI.md` does not support `glob` frontmatter triggers.
+- **Why D is incorrect**: `.evalset.json` stores ADK evaluation test cases, not coding-agent rules.
 </details>
 
 ---
 
 ### Question 13
-**Scenario**: A developer asks the coding agent to optimize a complex Python data processing script. The script currently takes 10 minutes to run. The agent rewrites the code to use multiprocessing, but when the developer tests it, the new script crashes due to a race condition.
+**Scenario**: You want to distribute a standardized **"GCP FinOps & Security Kit"** across 30 engineering teams using Antigravity. The kit must bundle 4 custom skills (`skills/`), 2 read-only auditor subagents (`agents/`), mandatory `PreToolUse` guardrails (`hooks/hooks.json`), and a team ruleset (`rules/`) as a single versioned unit.
 
-**What is the most effective workflow to resolve this using the coding agent?**
-- **A)** Delete the conversation history, paste the crash stack trace, and ask the agent to write the script from scratch again.
-- **B)** Provide the stack trace in the current conversation, ask the agent to explain the race condition, and instruct it to use the `GkeCodeExecutor` to run a test suite in an isolated sandbox.
-- **C)** Switch to a weaker model like Gemini 2.5 Flash-Lite so it avoids writing overly complex multiprocessing code.
-- **D)** Use the `run_command` tool to force the agent to run the script repeatedly until it works.
+**Which Antigravity manifest and directory structure packages all of these customizations together?**
+- **A)** An **Antigravity Plugin** defined by **`plugin.json`** inside `.agents/plugins/<plugin-name>/` (or `~/.gemini/config/plugins/<plugin-name>/`) containing `skills/` (and `skills.json`), `agents/`, `hooks/hooks.json`, and `rules/`.
+- **B)** A single `Dockerfile` placed in `/tmp`.
+- **C)** A CX Agent Studio Transition Route export.
+- **D)** A BigQuery scheduled query.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Coding agents excel at debugging when provided with exact stack traces in the context of the ongoing conversation. Using a secure execution sandbox (like `GkeCodeExecutor` in `job` or `sandbox` mode) allows the agent to safely run tests and iteratively verify its race-condition fix without crashing the developer's local machine. → Lab 05 — Secure Sandboxes.
-- **Why A is incorrect**: Deleting conversation history destroys the context of *why* the code was written that way, making it harder for the agent to debug the specific optimization.
-- **Why C is incorrect**: Multiprocessing race conditions are complex; switching to a smaller/weaker model decreases the likelihood of a correct fix.
-- **Why D is incorrect**: Blindly repeating a failing script will not fix a race condition and wastes compute resources.
+- **Why A is correct**: Objective 2.2 explicitly covers *"Creating skills, plugins, extensions hooks, rules, and subagents using Antigravity"*. An Antigravity **Plugin** (`plugin.json`) is the distributable bundle that groups `skills/`, `agents/`, `hooks/hooks.json`, and `rules/` for team-wide installation. → Lab 06 — Antigravity Customization.
+- **Why B, C, and D are incorrect**: None of these package Antigravity IDE/CLI customizations.
 </details>
 
 ---
 
 ### Question 14
-**Scenario**: You are configuring a fleet of coding agents for a large enterprise. The agents must have access to a proprietary internal tool that provisions cloud development environments. The tool's API changes frequently, and you want to manage the tool logic centrally rather than updating every developer's local agent configuration.
+**Scenario**: An Antigravity coding agent is invoking the **Agents CLI (`adk` / `agents-cli`)** inside an automated pipeline to evaluate (`adk eval`), prompt-optimize (`adk optimize`), and deploy (`adk deploy cloud_run`) an enterprise support agent. On its first attempt, the coding agent hangs indefinitely waiting for an interactive `[y/N]` confirmation prompt and misparses ANSI terminal spinner characters.
 
-**Which technology should you use to expose this tool to the coding agents?**
-- **A)** Write a bash script that curls the API, and distribute the script via Git to every developer's machine.
-- **B)** Implement the tool as a Model Context Protocol (MCP) server deployed on Cloud Run, and provide the MCP server URL to the agents.
-- **C)** Embed the API's OpenAPI specification directly into the Gemini model's fine-tuning dataset.
-- **D)** Create an Agent Retrieval vector database containing the tool's documentation.
+**How should you configure the Agents CLI invocation for coding-agent automation?**
+- **A)** Run the CLI in **Agent Mode** (headless, non-interactive flags, structured JSON output, and deterministic exit codes) rather than interactive **Human Mode** TTY spinners/prompts, and gate production deploys via explicit CI/CD or `PreToolUse` approval policies.
+- **B)** Use `adk web` and instruct the coding agent to take screenshots of localhost every 100ms.
+- **C)** Pipe `yes | rm -rf` before every CLI command with `UnsafeLocalCodeExecutor`.
+- **D)** Rewrite the entire `google-adk` CLI in assembly.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: MCP servers decouple tool implementation from the agent client. By deploying the tool as an MCP server on Cloud Run, the platform team manages the API integration centrally. The agents simply connect to the MCP server to dynamically discover and use the tool. → Lab 04 — MCP and Tooling.
-- **Why A is incorrect**: Distributing local bash scripts is difficult to maintain, audit, and version control across a large fleet.
-- **Why C is incorrect**: Fine-tuning teaches style and syntax, not dynamic tool execution. Furthermore, fine-tuning requires retraining every time the API changes.
-- **Why D is incorrect**: A vector database provides documentation, but does not give the agent the actual execution capability to call the API.
+- **Why A is correct**: Objectives 2.2 and 3.1 test *"Augmenting Antigravity with Agents CLI to build, scale, govern, and optimize deployed agents"* and *"agent vs. human mode"*. **Human Mode** (`adk web`, interactive `adk run`) uses TTY prompts and ANSI formatting for humans, whereas **Agent Mode** disables interactive stdin blocks and emits machine-parseable JSON + exit codes so Antigravity can orchestrate `adk eval`, `adk optimize` (GEPA), and `adk deploy` reliably. → Lab 06 & Lab 10.
+- **Why B, C, and D are incorrect**: Screenshot loops and `UnsafeLocalCodeExecutor` are brittle and unsafe workarounds.
 </details>
 
 ---
 
 ### Question 15
-**Scenario**: Your Antigravity coding agent needs to refactor an application to use the newly released Google Cloud Spanner features. The agent is hallucinating outdated Spanner syntax because the features were released after the model's training cutoff.
+**Scenario**: A healthcare fintech enterprise wants human software engineers to use **Claude Code on Google Cloud** and **Antigravity** to refactor HIPAA-regulated microservices. Security policy mandates:
+1. **Zero source code or credentials** may ever reside on developers' local laptops.
+2. All LLM coding calls must stay inside the company's **VPC Service Controls (VPC-SC)** perimeter using Google Cloud IAM — **no external third-party API keys**.
+3. Developers must use **least-privilege IAM** without static JSON Service Account keys.
 
-**How can you provide the agent with the necessary up-to-date knowledge?**
-- **A)** Tell the agent to guess the new syntax based on similar database technologies.
-- **B)** Provide the URL to the new Spanner documentation and use the web search or `read_url_content` tool to let the agent read the updated specs before coding.
-- **C)** Wait for Google to release a new base model with an updated training cutoff.
-- **D)** Switch to a localized SLM like Gemma 4 26B IT, which updates faster.
+**Which developer sandbox and authentication architecture meets every requirement?**
+- **A)** Provision **Cloud Workstations** inside the VPC-SC perimeter (persistent browser/SSH remote IDE with zero local disk sync), configure Claude Code and Antigravity to call Vertex AI endpoints via keyless **Application Default Credentials (ADC)** attached to a dedicated workstation Service Account granted **`roles/aiplatform.user`**, and enforce `iam.disableServiceAccountKeyCreation`.
+- **B)** Give every engineer an external `ANTHROPIC_API_KEY` on their personal MacBook and clone the HIPAA repo to `~/Desktop`.
+- **C)** Grant all engineers `roles/owner` and export static Service Account JSON keys into `.agents/mcp_config.json` committed to Git.
+- **D)** Run developers' IDEs inside `VertexAiMemoryBankService`.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Coding agents have access to tools that allow them to overcome training cutoffs. Directing the agent to read specific, up-to-date documentation via a URL reader or web search tool grounds its generation in current facts. → Lab 06 — Antigravity Customization.
-- **Why A is incorrect**: Guessing syntax leads to broken code and hallucinations.
-- **Why C is incorrect**: Waiting for a new base model is impractical for day-to-day development tasks.
-- **Why D is incorrect**: SLMs do not intrinsically have more recent training data than frontier SaaS models, and they generally have weaker coding capabilities.
+- **Why A is correct**: **Cloud Workstations** (Objective 2.1) provides managed, VPC-SC-confined remote development environments so proprietary code never touches endpoints. Pairing **Claude Code on Vertex AI** and **Antigravity** with keyless ADC + least-privilege `roles/aiplatform.user` eliminates external API keys and static JSON keys. → Lab 04 & Lab 05.
+- **Why B and C are incorrect**: External API keys bypass VPC-SC/BAA boundaries, local clones violate zero-laptop source policy, and committed JSON keys / `roles/owner` are severe IAM violations.
+- **Why D is incorrect**: Memory Bank is an agent memory store, not a developer workstation runtime.
 </details>
 
 ---
 
 ### Question 16
-**Scenario**: A developer is using a coding agent to parse a large 500MB JSON log file to find a specific error pattern. 
+**Scenario**: Your application security team receives nightly SAST/fuzzing crash reports on C++ and Python services. They want an autonomous workflow that localizes the root cause in the repository, synthesizes a minimal security patch, compiles and runs exploit reproduction + fuzzers + regression suites inside a **kernel-isolated sandbox**, and opens a verified pull request for human sign-off.
 
-**Which approach represents the most effective use of the coding agent?**
-- **A)** Instruct the agent to read the entire 500MB file into its context window and summarize the errors.
-- **B)** Have the agent write a short Python script using `json` and `grep` logic to parse the file locally, run it, and analyze the output.
-- **C)** Upload the 500MB file to Agent Platform Memory Bank for long-term semantic retrieval.
-- **D)** Configure a Cloud Logging sink to export the logs to BigQuery and use BigQuery ML.
+**Which tool and execution sandbox combination is purpose-built for this requirement?**
+- **A)** **Code Mender** paired with **GKE Agent Sandbox (`GkeCodeExecutor` configured with `executor_type="sandbox"`, gVisor `runsc`, and default-deny egress `NetworkPolicy`)**.
+- **B)** CX Agent Studio Transition Routes paired with `UnsafeLocalCodeExecutor` on the production database VM.
+- **C)** `GkeCodeExecutor(executor_type="job")` running in privileged root containers (`--privileged`) sharing the host Linux kernel.
+- **D)** Agent Designer zero-shot prompt templates with no test execution.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Coding agents are most effective when they write code to solve computational problems rather than trying to process massive datasets entirely within their prompt context. Writing a script to parse the file is fast, accurate, and cost-effective. → Lab 04 — MCP and Tooling.
-- **Why A is incorrect**: A 500MB JSON file is roughly 150-200 million tokens, which vastly exceeds the 1M or 2M token limit of even the largest context windows (like Gemini 3.7 Flash).
-- **Why C is incorrect**: Memory Bank is for long-term conversational memory and semantic facts, not bulk structured log analysis.
-- **Why D is incorrect**: While BQ is good for logs, setting up a sink and using BQ ML is overkill for a developer trying to quickly find a pattern in a local file.
+- **Why A is correct**: **Code Mender** (Objective 2.1 *"patch application-layer vulnerabilities"*) autonomously performs root-cause analysis, patch synthesis, and fuzz/regression verification. Running verification inside **`GkeCodeExecutor(executor_type="sandbox")`** uses **GKE Sandbox (`gVisor` `runsc`)** to intercept Linux syscalls in user space, protecting the host kernel from untrusted exploit reproduction payloads. → Lab 05 — Secure Sandboxes.
+- **Why B, C, and D are incorrect**: `UnsafeLocalCodeExecutor` and standard `executor_type="job"` (which shares the host kernel) expose infrastructure during exploit reproduction, and zero-shot prompts without sandbox testing cannot verify patches.
 </details>
 
 ---
 
 ### Question 17
-**Scenario**: You are designing a CI/CD pipeline where a coding agent automatically reviews pull requests. The agent needs to execute the PR's code to run the test suite. 
+**Scenario**: You are configuring **`.agents/mcp_config.json`** in Antigravity to connect a coding agent to two Model Context Protocol (MCP) servers:
+1. A local repository AST analyzer binary running as a child process on the same Cloud Workstation.
+2. A shared enterprise Cloud SQL schema-inspection MCP server hosted centrally on **Cloud Run** (`--no-allow-unauthenticated`) in another team's project, exposing **85 tools** (though developers typically use only 2 tools per session).
 
-**Which ADK CodeExecutor provides the strongest isolation for executing untrusted PR code?**
-- **A)** `BuiltInCodeExecutor` running on the CI/CD runner.
-- **B)** `UnsafeLocalCodeExecutor` running as a background task.
-- **C)** `GkeCodeExecutor` running in `sandbox` mode with gVisor.
-- **D)** `ContainerCodeExecutor` using standard Docker containers.
+**How should you configure transports, authentication, and context-window efficiency?**
+- **A)** Use **Stdio transport** (`command`, `args`) for the local AST analyzer; use **SSE / Streamable HTTP transport** (`serverUrl` + short-lived OIDC ID token header, granting the caller **`roles/run.invoker`** on the Cloud Run MCP service) for the remote server; and enable **lazy tool-schema loading** so the 85 tool JSON schemas do not bloat every prompt turn.
+- **B)** Expose the Cloud Run MCP server publicly with `--allow-unauthenticated` (`allUsers`) and eagerly inject all 85 full JSON schemas into `GEMINI.md`.
+- **C)** Hardcode the Cloud SQL `postgres` superuser password in plaintext inside `mcp_config.json` and commit it to Git.
+- **D)** Use the A2A `RemoteA2aAgent` protocol instead of MCP to run SQL schema queries.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: C**
+**Correct Answer: A**
 **Explanation**:
-- **Why C is correct**: The `GkeCodeExecutor` in `sandbox` mode provisions pods using GKE Sandbox (gVisor). gVisor intercepts syscalls to the host kernel, providing a strong security boundary ideal for untrusted, potentially malicious PR code. → Lab 05 — Secure Sandboxes.
-- **Why A is incorrect**: `BuiltInCodeExecutor` runs in the same process/environment as the agent, providing no isolation and risking CI/CD runner compromise.
-- **Why B is incorrect**: `UnsafeLocalCodeExecutor` explicitly provides no isolation.
-- **Why D is incorrect**: Standard Docker containers share the host kernel and are vulnerable to container escape exploits from untrusted code.
+- **Why A is correct**: Local process MCP servers use **Stdio**, while remote Cloud Run MCP servers use **SSE / Streamable HTTP** secured by Cloud Run IAM (`roles/run.invoker` + OIDC token). **Lazy loading** MCP tool schemas prevents dozens of unused tool definitions from consuming thousands of prompt tokens on every turn. → Lab 04 — MCP and Tooling.
+- **Why B and C are incorrect**: Public unauthenticated internal database servers and committed plaintext passwords violate security fundamentals; eager injection of 85 schemas bloats context cost.
+- **Why D is incorrect**: MCP connects agents to tools/databases; A2A connects agents to peer reasoning agents.
 </details>
 
 ---
 
 ### Question 18
-**Scenario**: Your team is building a complex application with multiple inter-dependent components. You want the coding agent to plan its approach before writing code, ensuring it doesn't get stuck in a dead-end implementation.
+**Scenario**: Using the **Antigravity Python SDK (`policy` module)**, you configure programmatic safety rules for an autonomous refactoring agent:
+- A workspace policy sets `ALLOW` on `run_command` for `git *`.
+- A higher-priority session policy sets `DENY` on `run_command` matching `git push --force*`.
+- A custom `when=` Python predicate checking branch names raises a `KeyError` bug at runtime.
 
-**How should you configure the agent's behavior?**
-- **A)** Limit the `max_tokens` output to force the agent to write shorter, simpler code.
-- **B)** Instruct the agent to create a markdown artifact (e.g., `design_doc.md`) outlining the architecture and steps before implementing any code.
-- **C)** Disable all tools so the agent focuses entirely on writing code.
-- **D)** Use a `LoopAgent` to continuously rewrite the code until it compiles.
+**According to Antigravity SDK `policy` evaluation rules, what happens when the agent attempts `git push --force` AND when the `when=` predicate throws `KeyError`?**
+- **A)** Both actions are **blocked (`DENY`)**: higher-priority `session_policies` override `workspace` policies (and within the same level `DENY > ASK > ALLOW`), and any unhandled exception inside a `when=` predicate **fails closed (`DENY`)**.
+- **B)** Both actions are allowed (`ALLOW`) because `ALLOW` takes precedence over `DENY` and exceptions fail open to maximize developer velocity.
+- **C)** Antigravity disables sandboxing (`enable_sandbox=False`) automatically whenever a `KeyError` occurs.
+- **D)** `GEMINI.md` overrides programmatic `session_policies`.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Forcing the agent to write a plan or design document artifact first leverages Chain-of-Thought reasoning. It allows the agent (and the human user) to review the architectural approach before committing tokens and time to implementation. → Lab 06 — Antigravity Customization.
-- **Why A is incorrect**: Limiting tokens just truncates the output; it doesn't improve planning.
-- **Why C is incorrect**: Disabling tools removes the agent's ability to read existing files or test its code.
-- **Why D is incorrect**: A `LoopAgent` rewriting code blindly without a plan will quickly exhaust resources and likely fail.
+- **Why A is correct**: In the Antigravity SDK 9-level policy hierarchy (`session_policies` → ... → `workspace` → ... → `system_defaults`), higher-priority levels win, **`DENY > ASK > ALLOW`** resolves same-level ties, and any exception raised by a custom `when=` predicate deterministically **fails closed (`DENY`)**. → Lab 06 — Antigravity Customization.
+- **Why B, C, and D are incorrect**: Failing open or allowing `GEMINI.md` text to override SDK security policies would create trivial security bypasses.
 </details>
 
-## Domain 3: Developing Custom Agents (~33%)
+---
 
 ### Question 19
-**Scenario**: You are architecting a real-time financial trading assistant using the Agent Development Kit (ADK). The agent must analyze market feeds, detect trading signals, and propose calls to an internal REST API. The system requires low latency and machine-validated API parameter shapes; application code will independently enforce business rules, authorization, and human approval.
+**Scenario**: You want your primary Antigravity coding agent to delegate security reviews of generated Terraform files to a specialized **`security-critic` subagent** defined in `.agents/agents/security-critic.md`. You must ensure the `security-critic` subagent: (1) cannot modify files or run shell commands, (2) does not pollute the parent coding agent's 100K-token coding context with verbose audit checklists, and (3) cannot recursively spawn infinite subagents.
 
-**Which model and parameter configuration should you select?**
-- **A)** Gemini 2.5 Pro with a static thinking budget of 32,000 tokens and zero temperature.
-- **B)** Gemini 3.7 Flash configured with dynamic thinking budget (1,024 to 2,048 tokens) and strict Pydantic structured output schemas (`response_schema`).
-- **C)** Gemma 4 26B IT deployed on an edge Cloud Run instance without function calling tools.
-- **D)** Gemini 3.5 Flash-Lite with thinking mode disabled and unstructured natural language output.
+**How should you configure the subagent?**
+- **A)** Define `security-critic` in `.agents/agents/` with **write/command tools disabled (`enable_write_tools: false`)** so it operates in an **isolated read-only subagent context window**, and set **`max_subagent_depth` / `allowed_subagents`** recursion bounds.
+- **B)** Paste the entire security checklist into the parent agent's conversation every turn and grant `BypassSandbox: true`.
+- **C)** Give `security-critic` `roles/owner` and unrestricted `run_command` access.
+- **D)** Deploy `security-critic` as a Cloud SQL stored procedure.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: A latency-oriented tool-capable model with a bounded thinking budget and a Pydantic `response_schema` is the best fit among these choices. The schema validates structure and types; it does not guarantee factual correctness or authorize a trade. → Lab 07 — Model Selection.
-- **Why A is incorrect**: Gemini 2.5 Pro with a 32K thinking budget will incur multi-second latencies, violating the 1.5-second SLA.
-- **Why C is incorrect**: Gemma models lack the complex multi-step reasoning and function calling reliability required for financial trading operations compared to Gemini Flash.
-- **Why D is incorrect**: Disabling thinking and using unstructured text will lead to hallucinated parameters and unreliable tool execution.
+- **Why A is correct**: Antigravity subagents run in **isolated context windows** (returning only a concise audit report to the parent), enforce tool-group separation (`enable_write_tools: false` guarantees read-only auditing), and prevent runaway fan-out via `max_subagent_depth` and `allowed_subagents`. → Lab 06 — Antigravity Customization.
+- **Why B, C, and D are incorrect**: Polluting parent context wastes tokens, granting write/owner privileges violates read-only critic separation, and SQL procedures are unrelated.
 </details>
 
 ---
 
 ### Question 20
-**Scenario**: An autonomous customer support agent built with the ADK interacts with enterprise users over multiple weeks. The agent needs to recall user preferences (e.g., preferred billing currency, communication language, past ticket resolutions) across completely different chat sessions, but recent chat turns must not be cluttered with thousands of irrelevant past messages.
+**Scenario**: A developer asks an Antigravity coding agent to diagnose why a **600 MB NDJSON production error log** stored on their Cloud Workstation exhibits spike patterns every Tuesday at 02:00 UTC.
 
-**Which memory architecture on Google Cloud should you deploy?**
-- **A)** Store all raw message histories in a single Firestore document and append the entire history to the system prompt on every turn.
-- **B)** Deploy **Agent Platform Memory Bank** to automatically extract semantic memories and facts, combined with a **Managed Session** store for short-term working context pruning.
-- **C)** Keep conversation history in local Python process memory using a global dictionary.
-- **D)** Configure a Redis cache that purges all keys every 24 hours using TTL expiration.
+**What is the fastest, cheapest, and most accurate coding-agent pattern?**
+- **A)** Instruct the coding agent to write and run a streaming Python script inside its local workspace sandbox to aggregate timestamps and error codes, then inspect only the compact summary output.
+- **B)** Read all 600 MB (~180M tokens) raw into the LLM context window.
+- **C)** Upload all 600 MB into `VertexAiMemoryBankService` as conversational user preferences.
+- **D)** Embed every JSON line with `gemini-embedding-2` before counting timestamps.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: **Agent Platform Memory Bank** (`VertexAiMemoryBankService`) provides long-term associative memory. It analyzes past turns, extracts salient facts/preferences, indexes them into a semantic store, and injects only relevant memories when queried. Managed Sessions (`VertexAiSessionService`) handle short-term conversational context with automatic sliding-window pruning. → Lab 09 — Sessions and Memory.
-- **Why A is incorrect**: Appending raw history to the system prompt will rapidly exceed context token limits, increase latency, and inflate costs.
-- **Why C is incorrect**: In-memory global state is lost on process restarts and fails when scaling horizontally across multiple container instances.
-- **Why D is incorrect**: Purging Redis keys after 24 hours destroys long-term user preferences across multi-week interactions.
+- **Why A is correct**: 600 MB (~180M tokens) vastly exceeds the 1,048,576-token window of Gemini models, and exact timestamp aggregation is a deterministic computational task best solved by having the coding agent write and run a small streaming Python analyzer. → Lab 04 & Lab 05.
+- **Why B, C, and D are incorrect**: Exceeds context limits, misuses conversational memory, and wastes money doing approximate vector math for exact aggregation.
 </details>
 
 ---
 
 ### Question 21
-**Scenario**: You need to connect an ADK-based agent to enterprise BigQuery analytics and Cloud SQL PostgreSQL databases. The agent must discover available schemas dynamically, generate valid SQL queries, execute them safely, and handle query syntax errors automatically without writing custom integration code for every database.
+**Scenario**: A serverless team runs an ADK coding/data-analysis helper on **Cloud Run** (without a GKE cluster) that occasionally needs to execute short, untrusted 5-second Python calculation snippets with **zero outbound internet access** and **clean state reset** after every snippet.
 
-**Which approach should you use?**
-- **A)** Hardcode database connection strings in the agent's system prompt and instruct the LLM to output bash commands using `psql` and `bq`.
-- **B)** Deploy **Google Cloud MCP Toolbox for Databases** as Model Context Protocol (MCP) servers and register them in the agent's MCP client configuration using `MCPToolset`.
-- **C)** Export all database tables to static CSV files in Cloud Storage every hour and query them using Agent Search.
-- **D)** Write custom Python functions for every SQL query variation and register them as static `FunctionTool` objects.
+**Which code executor configuration should they select?**
+- **A)** `CloudRunSandboxCodeExecutor(allow_egress=False, stateful=False, timeout_seconds=10)` from `google.adk.integrations.cloud_run`
+- **B)** `UnsafeLocalCodeExecutor()` inside the main web server process
+- **C)** `CloudRunSandboxCodeExecutor(allow_egress=True, stateful=True)`
+- **D)** `BuiltInCodeExecutor` with `roles/owner` attached to the Cloud Run service account
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: **Google Cloud MCP Servers** expose supported databases to agents through MCP with reusable tool definitions and database integration patterns. Using `MCPToolset` in the ADK seamlessly integrates these external tools. → Lab 10 — Tools and Skills.
-- **Why A is incorrect**: Exposing connection strings and running raw shell commands is a severe security vulnerability.
-- **Why C is incorrect**: Static CSV exports provide stale data and do not support dynamic real-time querying.
-- **Why D is incorrect**: Authoring custom functions for every query variation is unmaintainable and prevents dynamic query generation.
+- **Why A is correct**: `CloudRunSandboxCodeExecutor` runs snippets inside a sandboxed subprocess (`sandbox_bin`) within Cloud Run; setting `allow_egress=False` blocks outbound data exfiltration and `stateful=False` resets state cleanly between runs without requiring a GKE cluster. → Lab 05 & Lab 14.
+- **Why B, C, and D are incorrect**: `UnsafeLocalCodeExecutor` has zero isolation, `allow_egress=True, stateful=True` violates both network and statelessness constraints, and `roles/owner` violates least privilege.
 </details>
 
 ---
 
 ### Question 22
-**Scenario**: You are designing a complex multi-agent system for a logistics company using the ADK. The system consists of an Order Ingestion Agent, a Route Optimization Agent, and a Fleet Dispatch Agent. When an order arrives, the Route Optimization Agent and Fleet Dispatch Agent must collaborate, negotiate constraints across multiple turns, and hand off execution state statefully across different Kubernetes clusters.
+**Scenario**: Your coding agent uses **`adk optimize`** (from `google.adk.optimization`, powered by **GEPA** — `gepa_root_agent_prompt_optimizer`) to improve a customer-support triage agent whose tool-routing accuracy on edge cases is only 68%.
 
-**Which multi-agent protocol and orchestration pattern should you select?**
-- **A)** Implement the **Agent2Agent (A2A)** protocol managed via Agent Registry and Agent Identity.
-- **B)** Chain the agents into a rigid linear bash script that passes JSON files via local filesystem storage.
-- **C)** Use a single ADK `SequentialAgent` to run all three prompts in a deterministic order in one process.
-- **D)** Use Google Cloud Pub/Sub with broadcast fan-out where all agents execute independently without state handoffs or coordination.
+**What inputs does `adk optimize` require, and what artifact does it update?**
+- **A)** It evaluates candidate system instructions against a local **Eval Set (`local_eval_sampler` / `.evalset.json`)** using evaluation metrics, iteratively mutating and selecting **root agent prompt instructions** without modifying base LLM weights.
+- **B)** It runs GPU LoRA backpropagation on `gemini-3.7-flash` weights without needing an eval set.
+- **C)** It modifies Principal Access Boundary (PAB) IAM policies automatically.
+- **D)** It rewrites `hooks.json` into C++ kernel modules.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: The **Agent2Agent (A2A)** protocol enables decentralized autonomous agents to discover capabilities, exchange messages, and hand off execution state across network boundaries. It is designed precisely for multi-turn negotiation between independently deployed agents. → Lab 12 — Multi-agent and A2A.
-- **Why B is incorrect**: Bash scripts passing local files cannot scale across distributed cloud environments or support dynamic multi-turn agent negotiations.
-- **Why C is incorrect**: A `SequentialAgent` runs in a single process and enforces a rigid, deterministic order. It cannot handle multi-turn negotiation or cross-cluster deployment.
-- **Why D is incorrect**: Uncoordinated Pub/Sub broadcasting lacks stateful handoff and negotiation semantics.
+- **Why A is correct**: `adk optimize` (`gepa_root_agent_prompt_optimizer`) performs automated prompt/instruction optimization over a golden `.evalset.json` (`local_eval_sampler`), proposing instruction refinements and keeping candidates that raise empirical eval scores—no weight fine-tuning required. → Lab 06 & Lab 13.
+- **Why B, C, and D are incorrect**: GEPA optimizes instructions rather than model weights, IAM boundaries, or C++ binaries.
 </details>
 
 ---
 
 ### Question 23
-**Scenario**: You are building an internal HR agent that answers policy questions. The company wants to run the agent entirely within their Virtual Private Cloud (VPC) with zero data leaving the network, even to Google APIs. Cost is highly constrained, and the agent only needs to answer simple factual questions from an internal wiki.
+**Scenario**: An Antigravity coding agent is refactoring a legacy payment service to integrate a **newly released Google Cloud API** published last week (after the LLM's pre-training knowledge cutoff), causing the agent to hallucinate deprecated method signatures.
 
-**Which model architecture should you select?**
-- **A)** Gemini 3.8 Flash accessed via the Vertex AI API over the public internet.
-- **B)** A self-hosted **Gemma 4 31B IT** model deployed on a GKE cluster within the VPC using vLLM or Ollama.
-- **C)** Gemini 2.5 Pro fine-tuned using Model Garden.
-- **D)** An ADK `FallbackModel` configured to route all traffic to a third-party SaaS provider.
+**Which two mechanisms ground the coding agent in exact, current API signatures? (Select TWO)**
+- **A)** Connect an authoritative **documentation MCP server** (or inspect the installed SDK package directly in `.venv` via introspection/read tools) before generating code.
+- **B)** Package verified usage patterns and reference docs inside a workspace **Skill (`.agents/skills/<api>/SKILL.md` + `references/`)**.
+- **C)** Increase `temperature` to `2.0` so the model guesses newer method names randomly.
+- **D)** Disable all read and MCP tools so the model relies strictly on pre-training memory.
+- **E)** Switch from `gemini-3.7-flash` to `gemini-embedding-2` for code generation.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answers: A and B**
 **Explanation**:
-- **Why B is correct**: Deploying a self-hosted open model like Gemma 4 ensures zero data egress from the VPC, meeting the strict data residency and network isolation requirement. For simple factual RAG tasks, Gemma 4 is highly capable and avoids SaaS API costs. → Lab 07 — Model Selection.
-- **Why A is incorrect**: Calling Vertex AI APIs requires data to leave the VPC to hit the Google control plane (even with Private Service Connect, data is processed by Google's SaaS).
-- **Why C is incorrect**: Gemini 2.5 Pro is a SaaS model; fine-tuning it does not bring the model weights inside the VPC.
-- **Why D is incorrect**: Routing traffic to a third-party SaaS provider violates the strict "zero data leaving the network" requirement.
+- **Why A and B are correct**: Objective 2.1 tests configuring coding agents with **MCP servers** (e.g., live SDK/API doc lookup or local package introspection) and **custom skills (`SKILL.md` + `references/`)** to eliminate post-cutoff API hallucinations deterministically. → Lab 04 & Lab 06.
+- **Why C, D, and E are incorrect**: Higher temperature increases hallucinations, disabling tools traps the model in stale pre-training weights, and `gemini-embedding-2` cannot generate code.
 </details>
 
 ---
 
 ### Question 24
-**Scenario**: You are developing an ADK workflow for a data extraction pipeline. Step 1 extracts text from a PDF. Step 2 translates it. Step 3 summarizes it. These steps must happen in an exact, guaranteed order every time, without relying on the LLM to decide which tool to call next.
+**Scenario**: In Antigravity, you configure a **`PreToolUse`** hook in `.agents/hooks.json` targeting `write_to_file` so that whenever the coding agent writes a Kubernetes manifest missing the mandatory corporate label `cost-center: ai-platform`, the hook **injects the missing label automatically** and lets the write proceed seamlessly without failing the turn.
 
-**Which ADK orchestration component should you use?**
-- **A)** A single `LlmAgent` with all three tools provided in the `tools` list.
-- **B)** An ADK **graph `Workflow`** defining `Node` instances for each step and deterministic `Edge` connections between them.
-- **C)** The Agent2Agent (A2A) protocol with a broadcast message.
-- **D)** A `LoopAgent` with a `max_iterations` of 3.
+**Which `permissionDecision` value and payload field in the hook's camelCase JSON stdout accomplishes this?**
+- **A)** `"permissionDecision": "overwrite"` paired with `"updatedInput"` containing the modified `CodeContent`.
+- **B)** `"permissionDecision": "deny"` with exit code `137`.
+- **C)** `"permissionDecision": "crash_session"`.
+- **D)** Writing snake_case `allow_multiple_edits=true` to `/dev/null`.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: An ADK graph `Workflow` (or `SequentialAgent`) executes nodes in a rigid, deterministic order defined by edges. It explicitly removes control flow decisions from the LLM, guaranteeing the pipeline runs Step 1 -> Step 2 -> Step 3. → Lab 12 — Multi-agent and A2A.
-- **Why A is incorrect**: Giving an `LlmAgent` tools relies on the model to decide the order (agentic routing), which is probabilistic and not guaranteed.
-- **Why C is incorrect**: A2A is for decentralized agent communication, not for enforcing strict in-process deterministic pipelines.
-- **Why D is incorrect**: A `LoopAgent` iterates a single agent's reasoning loop; it does not enforce a three-step sequential pipeline of different tasks.
+- **Why A is correct**: Antigravity `PreToolUse` hooks support five `permissionDecision` actions (`"allow"`, `"deny"`, `"ask"`, `"force_ask"`, and **`"overwrite"`**). Returning `"overwrite"` with `"updatedInput"` rewrites the tool arguments deterministically before execution. → Lab 06 — Antigravity Customization.
+- **Why B, C, and D are incorrect**: `"deny"` aborts the tool call instead of rewriting the input, and the remaining options are invalid schemas.
 </details>
 
 ---
 
-### Question 25
-**Scenario**: You are configuring a RAG pipeline for an ADK agent using `VertexAiRagMemoryService`. The agent needs to search a massive corpus of 10 million legal documents. Initial testing shows the retrieval system is returning documents that share keywords but are semantically unrelated to the legal concepts in the user's query.
+## Domain 3: Developing Custom Agents (~33% · Questions 25–50)
 
-**Which configuration change to the vector retrieval system will best solve this?**
-- **A)** Switch the embedding model from `gemini-embedding-2` to `gemini-embedding-001`.
-- **B)** Increase the top-K retrieval limit from 10 to 1,000 to give the LLM more context.
-- **C)** Implement a **reranker** (like Vertex AI Ranking) to re-score the top vector matches based on deep semantic relevance before passing them to the agent.
-- **D)** Replace Vector Search with a standard SQL `LIKE` query on a Cloud SQL database.
+### Question 25
+**Scenario**: You are building a real-time **customer support triage agent** in ADK 2.9.0. For every incoming ticket, the system must query **four independent backends** before drafting a response: (1) Order Status API (~900 ms), (2) Shipping Carrier API (~1,100 ms), (3) Loyalty Tier Lookup (~600 ms), and (4) Return Policy RAG (~800 ms). Currently, a `SequentialAgent` runs four specialist sub-agents in series, passing the full 40,000-token chat transcript to each one, resulting in **>6.5 seconds** p95 latency.
+
+**Which ADK refactoring delivers the largest latency and token reduction while keeping results deterministic?**
+- **A)** Replace `SequentialAgent` with **`ParallelAgent`** for the four independent specialist lookups (cutting lookup wall-time from $\sum T_i \approx 3.4\text{s}$ to $\max T_i \approx 1.1\text{s}$), set **`include_contents='none'`** on each worker so they don't re-prefill the 40K transcript, write compact JSON outputs via **`output_key`**, and feed those keys into a downstream synthesizer agent.
+- **B)** Wrap all four agents in a `LoopAgent(max_iterations=10)` so they run 40 times sequentially.
+- **C)** Convert every local Python function into a cross-region A2A network call over public internet without concurrency.
+- **D)** Switch all four simple lookups to `gemini-2.5-pro` with a 32,768-token thinking budget.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: C**
+**Correct Answer: A**
 **Explanation**:
-- **Why C is correct**: A common RAG failure is that fast vector similarity (like dot product) captures broad similarity but misses nuanced semantic relevance. A reranker takes the top-K fast results and scores them with a heavier, more precise cross-encoder model, drastically improving the quality of the final context. → Lab 11 — RAG and Retrieval.
-- **Why A is incorrect**: `gemini-embedding-001` is a legacy model with a smaller input limit and worse performance than `gemini-embedding-2`.
-- **Why B is incorrect**: Passing 1,000 documents into the LLM context window will cause massive latency, high token costs, and likely trigger "lost in the middle" hallucinations.
-- **Why D is incorrect**: Standard SQL `LIKE` queries only do exact keyword matching, which is even worse at semantic concept matching than vector search.
+- **Why A is correct**: Independent I/O and specialist lookups belong in a **`ParallelAgent`** (latency drops from $\sum T_i$ to $\max(T_i)$), and setting **`include_contents='none'`** + passing scoped state via **`{output_key}`** eliminates redundant 40K-token prompt prefills across all four parallel LLM calls! → Lab 08 & Lab 12.
+- **Why B, C, and D are incorrect**: Each multiplies latency and token cost rather than reducing critical-path execution time.
 </details>
 
 ---
 
 ### Question 26
-**Scenario**: You want to share a custom capability—querying a proprietary internal ticketing system—across several different ADK agents built by different teams. You want teams to discover this capability dynamically and understand its expected inputs and outputs without reading source code.
+**Scenario**: Compare two ways a `CustomerSupportSupervisor` (`LlmAgent`) can invoke a `BillingSpecialist` (`LlmAgent`) inside the same ADK process:
+- **Pattern 1**: Add `BillingSpecialist` to `CustomerSupportSupervisor(sub_agents=[BillingSpecialist])` using **`transfer_to_agent`**.
+- **Pattern 2**: Wrap `BillingSpecialist` inside **`AgentTool(agent=BillingSpecialist)`** in `CustomerSupportSupervisor(tools=[...])`.
 
-**Which Google Cloud component should you use to publish this capability?**
-- **A)** Save a Python script to a shared Google Drive folder.
-- **B)** Package it using `Frontmatter` and publish it to the **Skill Registry** (`GCPSkillRegistry`).
-- **C)** Hardcode the tool logic into an ADK `BasePlugin` and require all teams to import it.
-- **D)** Deploy it to Cloud Run and share the IP address in a Slack channel.
+**Which statement accurately contrasts their latency and control-flow trade-offs?**
+- **A)** **`transfer_to_agent`** performs a **1-hop handoff** where `BillingSpecialist` takes over the conversation and streams directly to the user ($T_{\text{router}} + T_{\text{specialist}}$), whereas **`AgentTool`** treats `BillingSpecialist` like a synchronous function call and requires a **second parent LLM synthesis hop** ($T_{\text{sup1}} + T_{\text{specialist}} + T_{\text{sup2}}$) so `CustomerSupportSupervisor` retains final response control.
+- **B)** `AgentTool` has zero LLM calls, whereas `transfer_to_agent` requires GKE Sandbox (`gVisor`).
+- **C)** `transfer_to_agent` only works across separate GCP organizations via A2A, whereas `AgentTool` requires BigQuery.
+- **D)** Both patterns execute identically with zero difference in LLM invocations or ownership.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: The **Skill Registry** (accessed via `GCPSkillRegistry` in the ADK) is the discovery and governance plane for agent capabilities. By packaging the tool with `Frontmatter` (name, description, schema), other agents can use `search_skills()` or `search_tool_description()` to dynamically discover and integrate it. → Lab 10 — Tools and Skills.
-- **Why A is incorrect**: A shared Drive folder provides no programmatic API for dynamic discovery or schema validation.
-- **Why C is incorrect**: Hardcoding into a plugin requires code duplication and tight coupling, defeating dynamic discovery.
-- **Why D is incorrect**: Sharing an IP in Slack is an unmanaged, un-discoverable anti-pattern for enterprise capability sharing.
+- **Why A is correct**: Understanding **handoff (`transfer_to_agent`) vs. agent-as-a-tool (`AgentTool`)** is a classic ADK architecture trade-off: `transfer_to_agent` saves an entire supervisor re-synthesis LLM call (lower latency, direct specialist streaming), while `AgentTool` adds a second supervisor LLM pass so the parent can combine outputs from multiple specialists under one unified persona. → Lab 08 & Lab 12.
+- **Why B, C, and D are incorrect**: Misstate ADK's in-process delegation mechanics.
 </details>
 
-### Question 27
-**Scenario**: An ADK agent needs to interact with an external API that is known to be flaky, frequently returning HTTP 503 errors. If the tool call fails, the agent usually apologizes and gives up immediately, frustrating users.
+---
 
-**How can you configure the ADK to handle these transient tool failures automatically without changing the agent's core instructions?**
-- **A)** Add a `while True:` loop inside the agent's system prompt.
-- **B)** Wrap the tool in a `LongRunningFunctionTool`.
-- **C)** Apply the `ReflectAndRetryToolPlugin` to the agent, which automatically catches errors and prompts the model to retry the tool call.
-- **D)** Switch to a model with a larger thinking budget.
+### Question 27
+**Scenario**: In ADK 2.9.0, you are building a hierarchical customer-support system. A top-level `LlmAgent` (`SupportRouter`) dynamically routes either to `LiveTroubleshootingAgent` (`LlmAgent`) or to a strict 3-step `HipaaRecordsReleasePipeline` (`VerifyConsent -> RedactNotes -> GenerateSummary`). You notice `SequentialAgent` emits a `DeprecationWarning` recommending `google.adk.workflow.Workflow`, yet passing a `Workflow` directly inside `SupportRouter(sub_agents=[...])` fails validation.
+
+**What is the verified ADK 2.9.0 architectural solution?**
+- **A)** Keep **`SequentialAgent`** inside `SupportRouter.sub_agents` (or wrap `Workflow` inside an `AgentTool`), because ADK 2.9.0's deprecation message explicitly states: *"Workflow cannot yet be used as an LlmAgent sub-agent."*
+- **B)** Replace `SequentialAgent` with `ParallelAgent` so `GenerateSummary` runs before `VerifyConsent`.
+- **C)** Remove `SupportRouter` and require patients to call three separate REST endpoints manually.
+- **D)** Pass `UnsafeLocalCodeExecutor` into `sub_agents` to bypass validation.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: C**
+**Correct Answer: A**
 **Explanation**:
-- **Why C is correct**: The `ReflectAndRetryToolPlugin` is a built-in ADK mechanism that intercepts tool execution errors. Instead of failing immediately, it feeds the error back to the LLM (reflection) and allows it to retry the tool call, perfect for handling flaky APIs or syntax errors. → Lab 08 — ADK Fundamentals.
-- **Why A is incorrect**: System prompts cannot execute code loops; the LLM cannot enforce a `while True` behavior reliably.
-- **Why B is incorrect**: `LongRunningFunctionTool` is for asynchronous background tasks, not for automatically retrying failed synchronous API calls.
-- **Why D is incorrect**: A larger thinking budget helps with complex reasoning, but does not intercept tool execution exceptions in the ADK runtime.
+- **Why A is correct**: Verified directly against ADK 2.9.0 (`docs/VERIFIED_FACTS.md`): `Workflow` provides 0ms deterministic edge routing at the top level, **but cannot yet be nested inside `LlmAgent.sub_agents`**, which is why `SequentialAgent` / `ParallelAgent` / `LoopAgent` remain supported in 2.9.0 for hierarchical sub-agent trees. → Lab 08 — ADK Fundamentals.
+- **Why B, C, and D are incorrect**: Running `GenerateSummary` before `VerifyConsent` violates HIPAA, and manual client orchestration or code executors do not solve sub-agent nesting.
 </details>
 
 ---
 
 ### Question 28
-**Scenario**: You are deploying a multi-agent system where a customer-facing `GreeterAgent` collects user requirements and then transfers control to a `BookingAgent`. Both agents are deployed within the same Python application using the ADK.
+**Scenario**: Your retail customer support orchestrator runs on **Agent Runtime** in GCP Project `proj-support-front` (`service-account: sa-front@proj-support-front.iam.gserviceaccount.com`). It must delegate complex fraud disputes via the **Agent2Agent (A2A)** protocol to a `FraudInvestigatorAgent` hosted as a **private Cloud Run service** (`--no-allow-unauthenticated`) in **a separate GCP project**, `proj-risk-core`. Security forbids hardcoded URLs, public endpoints, and static Service Account JSON keys.
 
-**What is the simplest way to implement this handoff in the ADK?**
-- **A)** Use the Agent2Agent (A2A) gRPC protocol.
-- **B)** Provide the `BookingAgent` in the `sub_agents` list of the `GreeterAgent`, allowing it to use the `transfer_to_agent` tool automatically.
-- **C)** Setup a Pub/Sub topic and have the `GreeterAgent` publish a message that the `BookingAgent` subscribes to.
-- **D)** Write the `GreeterAgent` state to a Cloud SQL database and run a cron job to wake up the `BookingAgent`.
+**Which cross-project architecture and IAM configuration should you implement?**
+- **A)** Register `FraudInvestigatorAgent` and its Agent Card in **`AgentRegistry`**, resolve it dynamically via `registry.get_remote_a2a_agent()` (`RemoteA2aAgent` + `A2aRemoteAgentConfig` with a `RequestInterceptor` minting a keyless Google-signed **OIDC ID token** whose `audience` is the target Cloud Run URL), and grant **`roles/run.invoker`** on the `FraudInvestigatorAgent` Cloud Run service in `proj-risk-core` to `sa-front@proj-support-front.iam.gserviceaccount.com`.
+- **B)** Export a JSON key for `proj-risk-core`'s default Compute Engine service account (`roles/editor`) and commit it into `proj-support-front`'s container image.
+- **C)** Set `--allow-unauthenticated` (`allUsers`) on `FraudInvestigatorAgent` and pass a shared secret in the system prompt.
+- **D)** Use `MCPToolset` instead of A2A and grant `roles/owner` across both projects.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: For agents running in the *same process*, simply adding the target agent to the `sub_agents` list of the parent `LlmAgent` automatically provisions the `transfer_to_agent` tool. This is the simplest and most native way to handle in-process agent handoffs. → Lab 12 — Multi-agent and A2A.
-- **Why A is incorrect**: A2A is a complex protocol designed for cross-network, decentralized agent communication. It is overkill for agents running in the same Python application.
-- **Why C is incorrect**: Pub/Sub introduces unnecessary asynchronous infrastructure for a simple in-process synchronous handoff.
-- **Why D is incorrect**: Cron jobs and database polling are massive anti-patterns for real-time conversational agent handoffs.
+- **Why A is correct**: Cross-project A2A between `proj-support-front` and private Cloud Run in `proj-risk-core` requires: (1) dynamic discovery via **`AgentRegistry.get_remote_a2a_agent()`** (`RemoteA2aAgent`), (2) keyless OIDC ID token injection via `A2aRemoteAgentConfig(request_interceptors=[...])`, and (3) resource-scoped **`roles/run.invoker`** granted on the specific Cloud Run service in `proj-risk-core` to the caller's principal. → Lab 12 & Lab 16.
+- **Why B, C, and D are incorrect**: Static JSON keys, `allUsers` exposure, `roles/owner`, and misusing `MCPToolset` for agent-to-agent delegation are all major exam anti-patterns.
 </details>
 
 ---
 
 ### Question 29
-**Scenario**: You are building an agent that needs to authenticate to a third-party SaaS provider (e.g., Salesforce) on behalf of the specific human user interacting with the agent. The agent should only be able to access data the human user has permission to see in Salesforce.
+**Scenario**: An ADK healthcare support agent uses **`BigQueryToolset`** (`google.adk.tools.bigquery`) under its own runtime identity (`sa-claims-agent@proj-agent-app.iam.gserviceaccount.com`) to run **read-only analytical `SELECT` queries** against a curated claims table stored in `proj-data-lake.curated_claims.denials`. When you grant `sa-claims-agent` **only** `roles/bigquery.dataViewer` on the `curated_claims` dataset, every tool call fails with `403 Access Denied: User does not have bigquery.jobs.create`.
 
-**Which authentication mechanism should you implement in the ADK?**
-- **A)** Hardcode a Salesforce Admin API key in the ADK `ToolContext`.
-- **B)** Use the **Auth Manager (OAuth 2.0)** module (`OAuth2Auth`) to perform a 3-legged OAuth flow, capturing the user's specific access token to pass to the tool.
-- **C)** Use Agent Identity to issue a Google Cloud Service Account credential to the agent.
-- **D)** Use a `GcpAuthProvider` to assert a Principal Access Boundary.
+**What is the exact least-privilege IAM fix?**
+- **A)** Keep **`roles/bigquery.dataViewer`** scoped exclusively to the `proj-data-lake.curated_claims` dataset (or table), and additionally grant **`roles/bigquery.jobUser`** on `proj-agent-app` (the billing/execution project where query jobs are created).
+- **B)** Grant `roles/bigquery.admin` at the Organization root so all permission errors disappear.
+- **C)** Grant `roles/bigquery.dataOwner` on all datasets in `proj-data-lake` so the agent can also `DROP` tables.
+- **D)** Export a personal Data Engineer user OAuth refresh token and hardcode it in `BigQueryCredentialsConfig`.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: When an agent must act on behalf of a *specific human user* in a third-party system, 3-legged OAuth 2.0 is required. The ADK's Auth Manager handles token exchange and refresh, ensuring the agent's tool calls are executed with the human's exact permission scope. → Lab 16 — Agent Identity and Auth.
-- **Why A is incorrect**: Hardcoding an Admin API key grants the agent global access, violating least privilege and bypassing user-specific authorization.
-- **Why C is incorrect**: A Google Cloud Service Account identifies the *agent* to Google Cloud resources, not the human user to a third-party SaaS provider.
-- **Why D is incorrect**: A PAB restricts Google Cloud resource access; it does not authenticate users to Salesforce.
+- **Why A is correct**: BigQuery separates **data read authorization** (`roles/bigquery.dataViewer` on the target dataset/table in `proj-data-lake`) from **compute job creation** (`roles/bigquery.jobUser` on the project executing/billed for the SQL job, `proj-agent-app`). Granting both narrow roles solves the `403 bigquery.jobs.create` error with zero write or admin access! → Lab 10 & Lab 16.
+- **Why B, C, and D are incorrect**: Over-privilege the agent with destructive table permissions or leak personal credentials.
 </details>
 
 ---
 
 ### Question 30
-**Scenario**: You are designing a RAG system using `gemini-embedding-2`. The documents you are embedding are 50-page technical manuals. You decide to embed each entire 50-page manual as a single vector. During testing, the agent fails to answer specific technical questions accurately.
+**Scenario**: You are building a medical-policy RAG pipeline using **RAG Engine (`vertexai.preview.rag`)** over 50,000 complex clinical PDF guidelines containing **multi-column tables**, **exact ICD-10 / CPT procedure codes**, and nuanced exclusion clauses. Initial bi-encoder vector search (`gemini-embedding-2` alone) misses exact CPT codes and ranks superficially similar paragraphs above the true clinical exclusion rule.
 
-**What is the architectural flaw in this RAG design?**
-- **A)** The embedding model does not support technical jargon.
-- **B)** `gemini-embedding-2` has an input limit of 8,192 tokens; a 50-page manual exceeds this, causing truncation and loss of information.
-- **C)** You should have used `gemini-embedding-001` instead.
-- **D)** The agent needs a larger `response_schema` to hold the answer.
+**Which RAG Engine + Reranking configuration fixes table parsing, exact code recall, AND semantic precision?**
+- **A)** Configure `RagCorpus` ingestion with Document AI **`LayoutParserConfig`** (preserving table/section boundaries in `TransformationConfig`), enable **`HybridSearch`** (combining dense `gemini-embedding-2` vectors with sparse keyword matching for exact ICD-10/CPT codes) retrieving `top_k=40` candidates, and configure **Stage-2 Cross-Encoder Reranking** via **Discovery Engine Ranking API** (`rag.Ranking(rank_service=rag.RankService(model_name="semantic-ranker-default@latest"))` / `RankServiceClient`) down to `top_n=5`.
+- **B)** Embed each entire 80-page PDF as a single vector in `gemini-embedding-2` without chunking or reranking.
+- **C)** Pass `top_k=500` unranked chunks into every prompt turn.
+- **D)** Replace `gemini-embedding-2` with legacy `gemini-embedding-001` (2,048-token limit) and disable layout parsing.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: `gemini-embedding-2` has a maximum input limit of 8,192 tokens. A 50-page manual is roughly 25,000+ tokens. The embedding API will truncate the text, meaning everything past the first few pages is completely ignored and unsearchable. You must implement a **chunking strategy** (e.g., semantic chunking or fixed-size overlapping chunks). → Lab 11 — RAG and Retrieval.
-- **Why A is incorrect**: Embedding models handle technical jargon well; the issue is the input length limit.
-- **Why C is incorrect**: `gemini-embedding-001` is a stale model identifier and does not solve the fundamental lack of a chunking strategy.
-- **Why D is incorrect**: The `response_schema` dictates the output format, not the retrieval quality or embedding limits.
+- **Why A is correct**: Every piece addresses a specific failure mode: **`LayoutParserConfig`** keeps PDF tables intact across chunk boundaries, **`HybridSearch`** blends dense semantic embeddings (`gemini-embedding-2`) with lexical sparse matching for exact CPT/ICD-10 codes, and **Discovery Engine Ranking API (`RankService` / `RankServiceClient`)** applies cross-encoder joint query-document attention to rank the top 5 truly relevant clinical clauses at the top. → Lab 11 — RAG and Retrieval.
+- **Why B, C, and D are incorrect**: Exceed `gemini-embedding-2`'s 8,192-token limit, trigger "lost-in-the-middle" latency/cost bloat, or downgrade embedding quality.
 </details>
 
 ---
 
 ### Question 31
-**Scenario**: You need to integrate an open-source LangChain tool into your ADK workflow. You don't want to rewrite the tool from scratch using ADK's `FunctionTool`.
+**Scenario**: Your custom retrieval service queries **Vector Search 1.0** (fetching 50 candidate chunks in 6 ms) and also fetches 20 candidate rows from a PostgreSQL full-text index. Before injecting the top 5 merged records into `gemini-3.7-flash`, you want a **standalone, low-latency Google Cloud cross-encoder reranking API call** in Python without spinning up an `RagCorpus` or paying the multi-second latency of a generative LLM ranker.
 
-**How does the ADK support this requirement?**
-- **A)** You cannot use LangChain tools in ADK; you must rewrite them.
-- **B)** Use the `google.adk.integrations.langchain` module to wrap the LangChain tool so it conforms to the ADK `BaseTool` interface.
-- **C)** Run the LangChain tool in a separate Docker container and use A2A to communicate with it.
-- **D)** Inject the LangChain Python source code directly into the LLM's system prompt.
+**Which SDK client and request objects should you invoke, and with what least-privilege IAM role?**
+- **A)** Use **`google.cloud.discoveryengine_v1.RankServiceClient`** calling `client.rank(request=RankRequest(ranking_config=..., model="semantic-ranker-default@latest", top_n=5, query=..., records=[RankingRecord(id=..., title=..., content=...)]))` with **`roles/discoveryengine.viewer`**.
+- **B)** Use `rag.LlmRanker` with `gemini-2.5-pro` thinking budget 32K and `roles/owner`.
+- **C)** Sort the 70 strings alphabetically in Python.
+- **D)** Use `ModelArmorClient.sanitize_user_prompt()` as a document relevance ranker.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: The ADK provides built-in integration modules (`integrations.langchain`, `integrations.crewai`) that act as adapters, allowing you to seamlessly use tools developed for other popular open-source frameworks within an ADK agent. → Lab 10 — Tools and Skills.
-- **Why A is incorrect**: The ADK explicitly provides integration adapters; rewriting is not necessary.
-- **Why C is incorrect**: Running it in a separate container with A2A is massively over-engineered for a simple tool integration.
-- **Why D is incorrect**: Injecting source code does not execute the tool; it just wastes context tokens.
+- **Why A is correct**: **`discoveryengine_v1.RankServiceClient`** (`RankRequest` + `RankingRecord`) is Google Cloud's standalone cross-encoder **Ranking / Reranking API**, scoring arbitrary candidate lists from any vector DB (Vector Search 1.0, pgvector, BigQuery) in tens of milliseconds under least-privilege `roles/discoveryengine.viewer`. → Lab 11 — RAG and Retrieval.
+- **Why B, C, and D are incorrect**: `LlmRanker` with Pro incurs multi-second generative latency, alphabetical sort destroys relevance, and Model Armor is a safety scanner.
 </details>
 
 ---
 
 ### Question 32
-**Scenario**: You are configuring a fallback mechanism for an ADK agent that normally relies on Gemini 3.7 Flash. If the Google Cloud API experiences a regional outage, the agent must automatically degrade gracefully and use a local SLM (Gemma 3 Ollama) to answer the user, albeit with lower quality.
+**Scenario**: Compare the three retrieval products in the official Exam Guide: **Agent Search**, **RAG Engine**, and **Vector Search 1.0**. You must match three different departmental workloads to the optimal service:
+1. **HR Portal**: Out-of-the-box connectors to SharePoint, Google Drive, and Jira with automatic per-user Document-Level ACL inheritance and zero custom chunking code.
+2. **Custom Legal ADK Agent**: Custom PDF chunking (`ChunkingConfig` / `LayoutParserConfig`) over Cloud Storage files with managed corpus lifecycle and integrated `RankService` reranking.
+3. **E-Commerce Recommendations Engine**: 800 million custom multimodal product embeddings requiring <8 ms p99 ANN HNSW/ScaNN lookup with high-QPS numeric/categorical metadata filtering.
 
-**Which ADK class provides this functionality?**
-- **A)** `ReflectAndRetryModelPlugin`
-- **B)** `FallbackModel`
-- **C)** `LlmCapabilities`
-- **D)** `ManagedAgent`
+**Which 1 → 2 → 3 mapping is optimal?**
+- **A)** (1) **Agent Search** → (2) **RAG Engine** → (3) **Vector Search 1.0**
+- **B)** (1) Vector Search 1.0 → (2) Agent Search → (3) InMemoryMemoryService
+- **C)** (1) RAG Engine → (2) Cloud SQL → (3) `GEMINI.md`
+- **D)** Use long-context prompt stuffing (1M tokens) for all 800 million products on every turn.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: The `FallbackModel` class in `google.adk.models` allows you to define a primary model (Gemini) and one or more secondary models (e.g., local Gemma). If the primary model raises an exception (like an API outage or rate limit), the ADK automatically routes the request to the fallback model. → Lab 07 — Model Selection.
-- **Why A is incorrect**: `ReflectAndRetryModelPlugin` asks the *same* model to try generating again; it does not route traffic to a *different* model during an outage.
-- **Why C is incorrect**: `LlmCapabilities` is a metadata class describing what a model can do (e.g., function calling), not a routing mechanism.
-- **Why D is incorrect**: `ManagedAgent` interacts with the server-side Managed Agents API, not local model failover logic.
+- **Why A is correct**: **Agent Search** wins whenever turn-key SaaS connectors + Document-Level ACLs are required; **RAG Engine** (`RagCorpus`) wins for developer-controlled chunking/parsing + reranking pipelines in ADK; **Vector Search 1.0** wins for raw hundred-million/billion-scale low-latency ANN indexes with custom embeddings. → Lab 11 — RAG and Retrieval.
+- **Why B, C, and D are incorrect**: Mismatch managed connectors, memory types, and impossible context sizes.
 </details>
 
 ---
 
 ### Question 33
-**Scenario**: You want your ADK agent to perform a Google Search to answer a user's question about recent news, but you want to ensure the agent's response is explicitly grounded in the search results with citations provided by Google's backend.
+**Scenario**: You are deploying a customer-support ADK agent onto **Agent Runtime** (`adk deploy agent_engine`). You need two distinct state layers:
+1. **Within the active chat session**: Track the current support ticket ID, verified authentication flag (`session.state["verified"]`), and temporary scratchpad calculation (`temp:draft_calc` discarded after the current invocation).
+2. **Across separate chat sessions weeks apart**: Remember that a returning VIP customer prefers concise bulleted updates and metric units, automatically injected on **every** turn without costing an extra LLM tool-call round-trip.
 
-**Which ADK tool should you provision to the agent?**
-- **A)** `google_search` tool
-- **B)** `google_maps_grounding` tool
-- **C)** `enterprise_web_search` tool
-- **D)** Write a custom web scraper using BeautifulSoup.
+**Which session service, memory service, and recall tool should you configure?**
+- **A)** **`VertexAiSessionService`** (using plain session keys + `temp:` prefix) paired with **`VertexAiMemoryBankService`** and the **`preload_memory`** tool (authorized via `roles/aiplatform.user`).
+- **B)** `InMemorySessionService` paired with `load_memory` and `UnsafeLocalCodeExecutor`.
+- **C)** Store temporary per-turn scratchpad data inside `app:` global state so all customers overwrite each other's ticket IDs.
+- **D)** `RedisSessionService` with `ttl_seconds=60` as the sole long-term multi-week memory bank.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: The built-in `google_search` tool connects to Google's Grounding service. It performs the search and provides the LLM with verified facts and citation metadata, ensuring the response is grounded in real-time web results. → Lab 10 — Tools and Skills.
-- **Why B is incorrect**: `google_maps_grounding` is for location and places data, not general news.
-- **Why C is incorrect**: `enterprise_web_search` is for searching internal company intranets (Vertex AI Search for Web), not the public Google Search index for recent news.
-- **Why D is incorrect**: A custom scraper does not provide native citation grounding and is brittle compared to the managed Google Search tool.
+- **Why A is correct**: On **Agent Runtime**, **`VertexAiSessionService`** provides managed session state (`temp:` auto-clears after the invocation), while **`VertexAiMemoryBankService`** extracts durable cross-session user preferences. Using **`preload_memory`** (instead of reactive `load_memory`) eagerly injects relevant user memories before every LLM turn with zero extra tool-call latency! → Lab 09 — Sessions and Memory.
+- **Why B, C, and D are incorrect**: `InMemorySessionService` loses state across replicas/restarts, `app:` leaks state across users, and 60-second Redis TTL deletes multi-week memories.
 </details>
 
 ---
 
 ### Question 34
-**Scenario**: You are developing an agent that handles highly sensitive data. You want to capture telemetry (traces and spans) to monitor latency and tool execution using `google.adk.telemetry`, but you must ensure that no user prompts or LLM generated text are ever sent to Cloud Trace.
+**Scenario**: Conversely, suppose you build a **high-volume technical documentation Q&A agent** (50,000 turns/hour) deployed on **Cloud Run** where **95% of turns are anonymous, stateless one-off technical questions**, and only **5% of turns** explicitly ask *"Based on my past architecture discussions last month, what did we decide?"*
 
-**How do you configure the ADK Telemetry module?**
-- **A)** Disable telemetry entirely using `adk telemetry disable`.
-- **B)** Set `ContentCapturingMode` to a mode that excludes payloads (e.g., metadata only) in the `TelemetryConfig`.
-- **C)** Run a regex replace on the Cloud Trace dashboard to mask the data after it is uploaded.
-- **D)** Use `UnsafeLocalCodeExecutor` to bypass telemetry hooks.
+**To minimize Cloud Run session latency AND avoid wasting Memory Bank retrieval/token cost on the 95% of turns that don't need past history, which pairing is best?**
+- **A)** Use **`RedisSessionService`** (Memorystore for Redis with `ttl_seconds`) for sub-millisecond horizontal Cloud Run session state, and attach **`VertexAiMemoryBankService`** with the reactive **`load_memory`** tool so the LLM invokes memory lookup *only* on the 5% of turns where past context is requested.
+- **B)** Use `preload_memory` on 100% of anonymous turns and `InMemorySessionService` across 50 Cloud Run instances.
+- **C)** Dump raw Redis memory into `GCPSkillRegistry`.
+- **D)** Force every anonymous user through a 60-second cold-start GKE StatefulSet pod.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: The ADK `TelemetryConfig` uses `ContentCapturingMode` to control exactly what is recorded in spans. By setting it to exclude content/payloads, you retain structural metrics (latency, tool invocation counts, routing) without leaking sensitive prompt/response data to the observability backend. → Lab 15 — Observability and Troubleshooting.
-- **Why A is incorrect**: Disabling telemetry entirely blinds you to performance bottlenecks and system failures, which is unacceptable for production monitoring.
-- **Why C is incorrect**: Masking data on the dashboard means the sensitive data was already transmitted and stored in Cloud Trace, which is a compliance violation.
-- **Why D is incorrect**: `UnsafeLocalCodeExecutor` is for code execution sandboxing, not telemetry configuration.
+- **Why A is correct**: Stateless Cloud Run containers require external shared session storage (**`RedisSessionService`** delivers sub-ms latency and automatic `ttl_seconds` cleanup), while reactive **`load_memory`** ensures Memory Bank queries and extra prompt tokens are only paid on the 5% of turns that actually reference prior sessions. → Lab 09 — Sessions and Memory.
+- **Why B, C, and D are incorrect**: `InMemorySessionService` breaks when Cloud Run load-balances turns across multiple instances, and `preload_memory` wastes calls on 95% anonymous queries.
 </details>
 
 ---
 
 ### Question 35
-**Scenario**: A custom agent built with ADK needs to plan a 5-day vacation itinerary. It needs to search for flights, then search for hotels based on the flight dates, and finally suggest activities. 
+**Scenario**: You are selecting models (`common/models.py`) for a 3-tier enterprise customer support system:
+- **Tier 1 (High-Throughput Router — 5,000 req/min)**: Classify incoming user intent into 12 categories in <300 ms at minimal cost.
+- **Tier 2 (Core Support Agent)**: Multi-step tool orchestration across CRM, Order MCP, and Policy RAG with strong accuracy/latency balance.
+- **Tier 3 (Offline Escalation Auditor / LLM Judge)**: Deep multi-document dispute synthesis and rubric grading of Tier 2 transcripts.
 
-**Which agent architecture is most appropriate for handling this multi-step interdependent task?**
-- **A)** A single `LlmAgent` with a `BuiltInPlanner` or `PlanReActPlanner` configured.
-- **B)** A `ParallelAgent` that runs the flight, hotel, and activity searches simultaneously.
-- **C)** An Agent Registry search query.
-- **D)** A `FallbackModel` implementation.
+**Which pinned model assignment is optimal?**
+- **A)** Tier 1: **`gemini-3.5-flash-lite`** · Tier 2: **`gemini-3.7-flash`** (or `gemini-3.8-flash`) · Tier 3: **`gemini-2.5-pro`**
+- **B)** Tier 1: `gemini-2.5-pro` · Tier 2: `gemini-embedding-2` · Tier 3: `gemini-3.5-flash-lite`
+- **C)** Use floating alias `gemini-flash-latest` everywhere without version pinning so silent model shifts happen unannounced in production.
+- **D)** Use `veo-3.1-generate-preview` for text intent routing.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: The ADK provides Planners (`BuiltInPlanner`, `PlanReActPlanner`) that force an agent to decompose a complex goal into a sequence of dependent steps, execute them one by one, and adjust the plan if a step fails. This is ideal for a task where step 2 (hotels) strictly depends on the output of step 1 (flights). → Lab 08 — ADK Fundamentals.
-- **Why B is incorrect**: A `ParallelAgent` executes tasks concurrently. You cannot search for hotels based on flight dates if you haven't booked the flights yet; they are interdependent, not parallelizable.
-- **Why C is incorrect**: Agent Registry is for discovering capabilities, not executing reasoning plans.
-- **Why D is incorrect**: `FallbackModel` is for high availability API routing, not task planning.
+- **Why A is correct**: Matches capability to cost/latency shape: **`gemini-3.5-flash-lite`** handles cheap ultra-fast classification, **`gemini-3.7-flash`** is the pinned enterprise agentic workhorse, and **`gemini-2.5-pro`** provides maximum reasoning depth for complex audits and out-ranked LLM-as-a-judge evaluation. → Lab 07 & Lab 13.
+- **Why B, C, and D are incorrect**: Misassign embedding/video models, invert judge superiority, or rely on unpinned floating aliases.
 </details>
 
 ---
 
 ### Question 36
-**Scenario**: You want to deploy an ADK agent that receives asynchronous events from a Cloud Storage bucket whenever a new PDF is uploaded, processes the PDF, and sends an email. The agent does not need a synchronous chat interface.
+**Scenario**: A defense-contracting division must run an internal engineering support agent inside an **air-gapped VPC** with **zero outbound calls to multi-tenant SaaS LLM APIs**. Each GKE node has only a single 24 GB NVIDIA L4 GPU, and you need a verified open-weight model with a **262,144-token context window** and maximum tokens-per-second throughput.
 
-**Which ADK integration is designed for this event-driven architecture?**
-- **A)** `google.adk.integrations.redis`
-- **B)** `google.adk.integrations.eventarc` (using `EventarcToolset` and `CloudEventAttributesBinding`)
-- **C)** `google.adk.sessions.VertexAiSessionService`
-- **D)** `google.adk.integrations.model_armor`
+**Which verified model ID should you deploy via Model Garden / vLLM on GKE?**
+- **A)** `gemma-4-26b-a4b-it`
+- **B)** `gemma-4-31b-it`
+- **C)** `gemini-2.5-pro`
+- **D)** `gemini-3.7-flash`
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: The `eventarc` integration allows ADK agents to consume standard CloudEvents. An `EventarcToolset` can map incoming asynchronous triggers (like a GCS file upload) directly to agent invocations, enabling fully event-driven, background agent workflows. → Lab 12 — Multi-agent and A2A.
-- **Why A is incorrect**: Redis is a state store for sessions, not an event-triggering bus.
-- **Why C is incorrect**: Managed sessions are for multi-turn conversational memory, not event routing.
-- **Why D is incorrect**: Model Armor is a security scanning service for prompt injection and DLP, not an event trigger.
+- **Why A is correct**: **`gemma-4-26b-a4b-it`** is the Gemma 4 Mixture-of-Experts (MoE) open-weight model (26B total parameters, **~4B active parameters per token**, 262K input / 32K output). Activating only ~4B parameters per forward pass yields dramatically higher throughput and lower memory-bandwidth pressure on a single L4 GPU than the dense 31B variant while staying 100% self-hosted inside the VPC. → Lab 07 & Lab 19.
+- **Why B is incorrect**: `gemma-4-31b-it` activates all 31B parameters on every token, making it heavier and slower on a constrained single-L4 budget.
+- **Why C and D are incorrect**: Proprietary cloud SaaS models cannot be self-hosted inside an air-gapped VPC.
 </details>
 
-### Question 37
-**Scenario**: You are using ADK to build an agent that analyzes PDF invoices and cross-references them with unstructured vendor emails.
+---
 
-**Which model provides the highest context window (over 1M tokens) combined with native multimodal processing capabilities?**
-- **A)** Gemini 2.5 Pro
-- **B)** Gemini 3.8 Flash
-- **C)** Gemma 4 31B IT
-- **D)** `gemini-embedding-2`
+### Question 37
+**Scenario**: Across 12 engineering squads building ADK agents, teams want to publish and dynamically discover reusable domain procedures (e.g., `hipaa-claim-appeal-SOP`, `bigquery-cost-audit`) consisting of lightweight discovery metadata (`name`, `description`, `allowed_tools`), detailed Markdown instructions, and helper scripts stored in Google Cloud—without hardcoding all 200 SOPs into every agent's system prompt.
+
+**Which ADK / Google Cloud service and loading pattern solves this?**
+- **A)** Package each SOP as an ADK **`Skill`** (`Frontmatter` + `instructions` + `Resources`) published to **`GCPSkillRegistry`** (`google.adk.integrations.skill_registry`), using **L1 (`Frontmatter`) → L2 (`instructions`) → L3 (`Resources`) progressive disclosure** via `search_skills()` and `get_skill()`.
+- **B)** Register Markdown SOPs as A2A `RemoteA2aAgent` endpoints in Cloud DNS.
+- **C)** Paste all 200 SOPs into `global_instruction` on every agent.
+- **D)** Store SOP instructions inside `PrincipalAccessBoundary` IAM rules.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Gemini 3.8 Flash (and 3.7 Flash) supports a massive 1,048,576 token context window and natively processes PDFs and images (multimodal). → Lab 07 — Model Selection.
-- **Why A is incorrect**: While Gemini 2.5 Pro has a large context window, Gemini 3.8 Flash represents the latest generation verified available for high-capacity multimodal tasks in this environment.
-- **Why C is incorrect**: Gemma models are open-weights with smaller context windows (e.g., 262k) and are generally text-focused.
-- **Why D is incorrect**: This is an embedding model, not a generative model.
+- **Why A is correct**: **`SkillRegistry` / `GCPSkillRegistry`** (Tool #28 in the Exam Guide) governs reusable **`Skill`** bundles (`Frontmatter` fields: `name`, `description`, `license`, `compatibility`, `allowed_tools`, `metadata`), keeping token budgets lean through L1/L2/L3 progressive disclosure. → Lab 10 — Tools and Skills.
+- **Why B, C, and D are incorrect**: Confuse A2A live agents, token-bloated prompts, and IAM policies with skill discovery.
 </details>
 
 ---
 
 ### Question 38
-**Scenario**: You want to execute a Python script dynamically generated by an ADK agent using `CloudRunSandboxCodeExecutor`. 
+**Scenario**: An ADK customer-support agent calls a third-party shipping REST API via a `FunctionTool`. Occasionally, the LLM formats the `country_code` as `"United States"` instead of ISO-2 `"US"`, causing the tool to raise a `ValueError("Expected 2-letter ISO code")`, or the API returns a transient `503`. You want the agent to automatically inspect the error and retry with fixed arguments up to a bounded limit.
 
-**Which parameter must be configured to ensure the container is stateless and cleans up after each turn?**
-- **A)** Set `stateful=False`.
-- **B)** Define `timeout_seconds=0`.
-- **C)** Disable `allow_egress`.
-- **D)** Use `AgentEngineSandboxCodeExecutor` instead.
+**Which built-in ADK plugin provides this self-healing tool retry behavior?**
+- **A)** `ReflectAndRetryToolPlugin` (from `google.adk.plugins`)
+- **B)** `ModelArmorPlugin`
+- **C)** `DebugLoggingPlugin`
+- **D)** `GcsArtifactService`
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: The `CloudRunSandboxCodeExecutor` provides a `stateful` boolean parameter. Setting `stateful=False` ensures the execution environment is destroyed/reset between runs, maintaining a clean slate. → Lab 14 — Deployment Runtimes.
-- **Why B is incorrect**: Setting a timeout to 0 would immediately kill the execution.
-- **Why C is incorrect**: Egress controls network access, not statefulness.
-- **Why D is incorrect**: This is a completely different executor meant for the Agent Runtime, not Cloud Run.
+- **Why A is correct**: **`ReflectAndRetryToolPlugin`** (`google.adk.plugins`) intercepts tool exceptions, feeds structured error diagnostics back to the model for reflection (so it corrects `"United States"` → `"US"` or retries transient failures), and bounds retry attempts cleanly. → Lab 08 & Lab 10.
+- **Why B, C, and D are incorrect**: Screen content safety, log debug events, or store binary artifacts rather than reflecting/retrying failed tool calls.
 </details>
 
-## Domain 4: Evaluating and Deploying Agentic Workflows (~22%)
+---
 
 ### Question 39
-**Scenario**: Before promoting a new customer service agent to production, your team needs to evaluate its performance against 500 historical customer interactions. The evaluation must verify: (1) Did the agent select the right refund tool? (2) Were the generated refund parameters exact? (3) Was the agent's explanation faithful to company policy?
+**Scenario**: In ADK, an iterative `PolicyDraftingAgent` writes a customer refund email (`output_key="draft_email"`) and a `ComplianceCriticAgent` checks whether mandatory legal disclosures are present. You want them to iterate until `ComplianceCriticAgent` approves the draft, **capped strictly at 3 iterations** so a stubborn edge case never causes a runaway billing loop.
 
-**What is the recommended evaluation architecture on Google Cloud?**
-- **A)** Have senior customer support agents manually read all 500 conversation transcripts in Google Cloud Logging.
-- **B)** Use **ADK evaluation tooling (`AgentEvaluator`)** with a curated **Eval Set** and deploy an **Agent Platform Gen AI Autorater (e.g., using Gemini 3.7 Flash)** to score tool precision and answer faithfulness automatically.
-- **C)** Compute traditional BLEU and ROUGE scores against human reference responses.
-- **D)** Run simple Python unit tests verifying that the agent returns HTTP 200 OK status codes.
+**Which orchestration class and termination tool should you combine?**
+- **A)** `LoopAgent(name="DraftReviewLoop", max_iterations=3, sub_agents=[PolicyDraftingAgent, ComplianceCriticAgent])` with the built-in **`exit_loop`** tool (`from google.adk.tools import exit_loop`) attached to `ComplianceCriticAgent`.
+- **B)** `ParallelAgent` with `disallow_transfer_to_parent=True`.
+- **C)** A `while True:` loop inside the prompt without `max_iterations`.
+- **D)** `FallbackModel` wrapping `ComplianceCriticAgent`.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: ADK `AgentEvaluator` combined with Eval Sets and LLM-as-a-judge autoraters provides multi-dimensional, automated evaluation. It measures tool selection accuracy (`multi_turn_tool_use_quality_evaluator`), trajectory quality, and factual faithfulness against ground truth. → Lab 13 — Agent Evaluation.
-- **Why A is incorrect**: Manual review of 500 multi-turn transcripts is slow, expensive, and cannot be integrated into automated CI/CD pipelines.
-- **Why C is incorrect**: BLEU and ROUGE measure n-gram lexical overlap, which fails completely for evaluating tool calls, multi-turn reasoning, or semantic correctness.
-- **Why D is incorrect**: HTTP 200 OK only verifies server availability, not agent reasoning accuracy or tool correctness.
+- **Why A is correct**: **`LoopAgent`** enforces a deterministic ceiling via `max_iterations=3`, while invoking **`exit_loop`** allows `ComplianceCriticAgent` to terminate the loop immediately on iteration 1 or 2 once disclosures pass. → Lab 08 & Lab 12.
+- **Why B, C, and D are incorrect**: `ParallelAgent` runs concurrently once, prompt loops have no hard cap, and `FallbackModel` handles model outages.
 </details>
 
 ---
 
 ### Question 40
-**Scenario**: In production, your monitoring dashboard alerts you that an autonomous research agent is occasionally getting trapped in an infinite reasoning loop, making 40+ consecutive web search tool calls with slightly varied keywords when researching obscure topics, leading to high latency and cost spikes.
+**Scenario**: An ADK enterprise billing agent needs to connect to both **Cloud SQL for PostgreSQL** and **BigQuery** through a centrally governed **MCP Toolbox for Databases** server hosted on Cloud Run, authenticating to Cloud SQL **without** database passwords and reading a Slack webhook secret **without** broad project-level secret access.
 
-**Which set of mitigations should you implement?**
-- **A)** Disable the web search tool entirely and rely solely on the LLM's internal pre-trained weights.
-- **B)** Configure a strict `max_iterations` execution budget (if using a LoopAgent) and implement a `before_tool_callback` interceptor hook in the ADK agent to detect duplicate queries and inject a reflection prompt.
-- **C)** Increase the Cloud Run container memory and CPU limits to allow the agent to execute indefinitely.
-- **D)** Switch the model to Gemini 2.5 Flash-Lite to reduce token costs during the infinite loops.
+**Which least-privilege IAM configuration should you apply?**
+- **A)** Configure Cloud SQL **IAM Database Authentication** granting the MCP server's Service Account **`roles/cloudsql.client` + `roles/cloudsql.instanceUser`**, grant **`roles/secretmanager.secretAccessor` bound strictly on the single Slack webhook secret resource**, and grant the ADK agent **`roles/run.invoker`** on the MCP Cloud Run service.
+- **B)** Grant `roles/cloudsql.admin` and project-wide `roles/secretmanager.admin` to all containers, and store the PostgreSQL `postgres` root password in `GEMINI.md`.
+- **C)** Make the Cloud SQL instance public (`0.0.0.0/0`) with trust authentication.
+- **D)** Export CSV dumps to a public GCS bucket every night.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Preventing agent reasoning loops requires multi-layer defense: setting a hard turn limit (`max_iterations`) and implementing lifecycle hooks (`before_tool_callback`) to detect repetitive/stagnant tool calls, dynamically steering the agent to summarize findings or ask for clarification. → Lab 15 — Observability and Troubleshooting.
-- **Why A is incorrect**: Disabling search removes the core research capability of the agent.
-- **Why C is incorrect**: Increasing compute limits worsens cost spikes and does not solve the algorithmic logic loop.
-- **Why D is incorrect**: Switching models does not solve the loop condition and degrades research quality.
+- **Why A is correct**: Enforces defense-in-depth least privilege at every hop: `roles/run.invoker` gates MCP transport access, `roles/cloudsql.client` + `roles/cloudsql.instanceUser` enables keyless IAM DB authentication, and resource-level `roles/secretmanager.secretAccessor` prevents reading any other secret in the project. → Lab 10 & Lab 16.
+- **Why B, C, and D are incorrect**: Expose admin roles, plaintext root credentials, or public network/storage surfaces.
 </details>
 
 ---
 
 ### Question 41
-**Scenario**: You are deploying a simple, stateless Q&A agent built with the ADK. The workload expects highly variable traffic (from 0 requests at night to 10,000 requests per minute during a marketing push). The team has limited DevOps experience and wants to minimize infrastructure management and costs during idle periods.
+**Scenario**: An ADK customer-support agent handles high-value warranty replacements. Whenever replacement value exceeds **$500**, the agent must **pause mid-execution**, present structured `[Approve Replacement / Reject / Request Receipt]` options to a human supervisor, and resume the exact paused session once the supervisor responds hours later.
 
-**Which deployment runtime should you select?**
-- **A)** Google Kubernetes Engine (GKE) standard cluster with manual node provisioning.
-- **B)** Cloud Run, deployed via `adk deploy cloud_run`.
-- **C)** Compute Engine virtual machines with static IP addresses.
-- **D)** Agent Runtime.
+**Which built-in ADK primitives support durable Human-in-the-Loop (HITL) pauses and resumptions?**
+- **A)** Built-in HITL tools **`get_user_choice` / `request_input`** or **`LongRunningFunctionTool`** (from `google.adk.tools`) paired with **`ResumabilityConfig`** (`google.adk.apps.App`) and a persistent `SessionService` (`VertexAiSessionService` or `DatabaseSessionService`).
+- **B)** `time.sleep(28800)` inside a synchronous `FunctionTool` blocking a Cloud Run worker thread for 8 hours.
+- **C)** Asking the LLM in its system prompt to *"pretend a manager approved it if the customer sounds polite"*.
+- **D)** Using `InMemorySessionService` on scale-to-zero Cloud Run instances.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Cloud Run is a fully managed serverless platform that scales to zero during idle periods (saving costs) and scales up rapidly to handle traffic spikes. It is ideal for stateless workloads and requires minimal DevOps expertise. The `adk deploy cloud_run` command makes this trivial. → Lab 14 — Deployment Runtimes.
-- **Why A is incorrect**: GKE standard requires managing nodes, control planes, and networking, which demands high DevOps expertise and incurs baseline costs even at zero traffic.
-- **Why C is incorrect**: Static VMs do not scale dynamically and charge for 24/7 uptime regardless of traffic.
-- **Why D is incorrect**: While Agent Runtime (`adk deploy agent_engine`) is an option, Cloud Run is explicitly the most established choice for stateless, scale-to-zero HTTP web application deployments with minimal overhead.
+- **Why A is correct**: ADK provides native HITL primitives (`get_user_choice`, `request_input`, and `LongRunningFunctionTool`) that yield control cleanly without holding compute threads open, while `ResumabilityConfig` + persistent `VertexAiSessionService` / `DatabaseSessionService` allows resuming hours later even after container scale-down. → Lab 10 & Lab 17.
+- **Why B, C, and D are incorrect**: `sleep()` exceeds Cloud Run request timeouts and wastes compute, prompt-based approval is easily bypassed, and `InMemorySessionService` loses paused state on scale-to-zero.
 </details>
 
 ---
 
 ### Question 42
-**Scenario**: You are using `adk eval` to test a new version of your agent. The test suite uses the `rubric_based_final_response_quality_v1` metric. The agent scores highly on the final response, but production users complain that the agent takes too long to answer.
+**Scenario**: In a multi-agent hierarchy (`RootTriageAgent` → `BillingAgent`, `TechSupportAgent`, `ReturnsAgent`), production traces show `BillingAgent` unexpectedly transferring customers sideways to `ReturnsAgent`, which transfers back to `BillingAgent` in a 9-turn lateral ping-pong loop. You want only `RootTriageAgent` to orchestrate handoffs; leaf specialists must complete their task and never transfer laterally to peers.
 
-**What is the likely cause of this discrepancy, and which evaluation metric should you add?**
-- **A)** The model is hallucinating; you should add `hallucinations_v1`.
-- **B)** The agent is executing an inefficient sequence of tool calls before reaching the right answer; you should add `trajectory_evaluator` or `multi_turn_tool_use_quality_evaluator` to analyze the intermediate steps.
-- **C)** The deployment runtime is under-provisioned; you should add a security evaluator.
-- **D)** The users are asking too many questions; you should add `multi_turn_task_success_evaluator`.
+**Which exact `LlmAgent` configuration fields stop lateral ping-pong transfers deterministically?**
+- **A)** Set **`disallow_transfer_to_peers=True`** (and optionally `disallow_transfer_to_parent=True` when terminal) on the specialist `LlmAgent` definitions.
+- **B)** Set `parallel_worker=True` on `VertexAiMemoryBankService`.
+- **C)** Add `"Please do not transfer to ReturnsAgent"` in `BillingAgent`'s system prompt while leaving peer transfer tools enabled.
+- **D)** Switch from `LlmAgent` to `UnsafeLocalCodeExecutor`.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Final-response scoring only checks if the final answer is correct. It ignores *how* the agent got there. If an agent makes 10 confused, failed tool calls before finally getting the answer on the 11th try, the final response gets an A+, but latency is terrible. Trajectory and tool-use evaluators analyze the efficiency and correctness of the intermediate steps. → Lab 13 — Agent Evaluation.
-- **Why A is incorrect**: The prompt says the agent scores highly on response quality, meaning it is likely not hallucinating the final answer.
-- **Why C is incorrect**: Under-provisioning is an infrastructure issue, not something solved by a security LLM evaluator.
-- **Why D is incorrect**: Task success still measures the final outcome, not the latency-inducing inefficient path taken to get there.
+- **Why A is correct**: `LlmAgent` exposes **`disallow_transfer_to_peers`** and **`disallow_transfer_to_parent`** (`docs/VERIFIED_FACTS.md`), which deterministically prune invalid target agents from `TransferToAgentTool`'s schema so the LLM physically cannot emit lateral peer transfers. → Lab 08 & Lab 12.
+- **Why B, C, and D are incorrect**: Prompt nudges remain probabilistic when peer targets are still exposed in the tool schema, and the other fields do not exist on those classes.
 </details>
 
 ---
 
 ### Question 43
-**Scenario**: A team is promoting a RAG agent after it passes response-style reviews. In production, users report that answers are fluent but cite irrelevant documents. 
+**Scenario**: Your ADK customer-support agent relies on `gemini-3.7-flash` in `us-central1`. Business continuity rules require that if Vertex AI returns `429 RESOURCE_EXHAUSTED` or a transient regional `503`, the agent automatically fails over to a secondary model endpoint without crashing the user's conversation.
 
-**Which two changes most directly address the release failure? (Select TWO)**
-- **A)** Add retrieval relevance/groundedness cases to a golden dataset and gate releases on them.
-- **B)** Increase Cloud Run CPU so the model can write longer answers.
-- **C)** Trace retrieval candidates, similarity scores, reranking, citations, and end-to-end latency using `adk telemetry`.
-- **D)** Replace all human-authored questions in the test set with synthetic easy questions.
-- **E)** Disable citations because users find them distracting.
+**Which ADK model wrapper class implements this failover?**
+- **A)** `FallbackModel` (from `google.adk.models`)
+- **B)** `ReflectAndRetryToolPlugin`
+- **C)** `LlmCapabilities`
+- **D)** `ManagedAgent`
 
 <details><summary>Show answer</summary>
 
-**Correct Answers: A and C**
-**Explanation**: 
-- **Why A and C are correct**: The failure is retrieval quality, not prose style or compute. A representative golden set makes it testable (`A`); telemetry traces (`C`) identify whether candidate generation, filters, reranking, or latency caused the miss. → Lab 15 — Observability and Troubleshooting.
-- **Why B is incorrect**: CPU limits do not affect the semantic relevance of vector retrieval.
-- **Why D is incorrect**: Synthetic easy questions will artificially inflate test scores and hide the production failure.
-- **Why E is incorrect**: Disabling citations hides the symptom but doesn't fix the underlying retrieval failure.
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: **`FallbackModel`** (`google.adk.models`) wraps a primary `BaseLlm` and an ordered list of backup models (e.g., cross-region Gemini or self-hosted `Gemma`), failing over automatically on model API errors. → Lab 07 — Model Selection.
+- **Why B, C, and D are incorrect**: `ReflectAndRetryToolPlugin` retries tool exceptions on the *same* model; `LlmCapabilities` is a capability descriptor; `ManagedAgent` wraps server-side managed interactions.
 </details>
 
 ---
 
 ### Question 44
-**Scenario**: An enterprise needs to deploy an ADK agent that orchestrates highly sensitive proprietary workloads. The deployment environment must support custom Kubernetes networking policies, sidecar proxies for mutual TLS (mTLS), and dedicated node pools equipped with specific GPU hardware accelerators.
+**Scenario**: Two departmental agents communicate via the **Agent2Agent (A2A)** protocol. Before creating a task, the calling orchestrator must inspect what skills, input/output MIME types, and authentication schemes (`OAuth2`, `OIDC`) the remote agent supports, and then inject a signed authorization header into every outgoing A2A request.
 
-**Which deployment runtime must you select?**
-- **A)** Cloud Run
-- **B)** Google Kubernetes Engine (GKE) via `adk deploy gke`
-- **C)** Agent Runtime
-- **D)** App Engine Standard
+**Which A2A artifact and ADK configuration classes handle capability discovery and header injection?**
+- **A)** The remote agent publishes an **Agent Card** (`/.well-known/agent.json`), and the caller configures **`RemoteA2aAgent` / `A2aRemoteAgentConfig`** with **`request_interceptors` (`RequestInterceptor`)** and **`card_request_interceptors` (`CardRequestInterceptor`)**.
+- **B)** The remote agent publishes a `hooks.json` file over FTP and the caller uses `BigQueryToolset`.
+- **C)** Both agents share a local SQLite span exporter file (`sqlite_span_exporter`).
+- **D)** The caller uses `VertexAiRagMemoryService` to guess the remote URL from embeddings.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: GKE provides total control over the Kubernetes control plane. It is required when you need custom network policies (Calico), Istio/Envoy sidecars for mTLS, and custom hardware scheduling (specific GPU node pools). → Lab 14 — Deployment Runtimes.
-- **Why A is incorrect**: Cloud Run abstracts away the network and node layers; you cannot deploy custom sidecars for mTLS or specify node pool topologies.
-- **Why C is incorrect**: Agent Runtime is a managed service that does not expose underlying Kubernetes cluster configurations to the user.
-- **Why D is incorrect**: App Engine Standard runs in a highly restricted sandbox and does not support custom Kubernetes networking or GPUs.
+- **Why A is correct**: In A2A (`google.adk.a2a.agent` + `RemoteA2aAgent`), peer capabilities and auth requirements are advertised via an **Agent Card**, while `A2aRemoteAgentConfig` provides `request_interceptors` and `card_request_interceptors` to attach OAuth/OIDC tokens and trace headers cleanly. → Lab 12 — Multi-Agent and A2A.
+- **Why B, C, and D are incorrect**: Confuse coding hooks, local telemetry exporters, and RAG memory with A2A protocol negotiation.
 </details>
 
 ---
 
 ### Question 45
-**Scenario**: You are using the GEPA optimizer (`adk optimize`) to improve the system instructions of an agent that frequently fails to extract JSON from unstructured text. 
+**Scenario**: You are building a top-level insurance claims settlement pipeline in ADK 2.9.0 (`ParseClaim -> CheckCoverage -> ComputePayout -> JoinAudit`). Every transition must follow explicit Python edge conditions with **0 ms LLM routing overhead**, bounded node retries (`RetryConfig`), and per-node SLAs (`NodeTimeoutError`). It does **not** need to be nested as a `sub_agent` inside an `LlmAgent`.
 
-**How does the `gepa_root_agent_prompt_optimizer` function?**
-- **A)** It uses gradient descent to adjust the internal weights of the Gemini model.
-- **B)** It iteratively proposes changes to the agent's system prompt, evaluates the new prompt against a provided local eval set, and keeps the prompt that yields the highest score.
-- **C)** It automatically upgrades your subscription to a more expensive API tier.
-- **D)** It converts Python code into optimized C++ binaries.
+**Which ADK 2.9.0 orchestration engine is purpose-built for this top-level deterministic DAG?**
+- **A)** `google.adk.workflow.Workflow` (`Node`, `FunctionNode`, `JoinNode`, `Edge`, `START`)
+- **B)** A single `LlmAgent` with 15 tools and temperature `1.0` hoping it calls them in DAG order
+- **C)** `InMemoryArtifactService`
+- **D)** `Gemma3Ollama` without any workflow edges
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: DSPy/GEPA optimizers work at the prompt level. They use a "teacher" LLM to propose variations of the system instructions, test those variations against an evaluation dataset (`local_eval_sampler`), and algorithmically select the prompt that maximizes the evaluation metric. → Lab 13 — Agent Evaluation.
-- **Why A is incorrect**: This describes fine-tuning or pre-training, not prompt optimization. ADK optimizes the prompt text, not the model weights.
-- **Why C is incorrect**: Optimizers do not alter billing or API tiers.
-- **Why D is incorrect**: It optimizes LLM instructions, not compiled code.
+- **Why A is correct**: Objective 3.3 explicitly tests **"graph workflow"**, implemented in ADK 2.9.0 by **`google.adk.workflow.Workflow`** (`Node`, `FunctionNode`, `JoinNode`, `Edge`, `RetryConfig`, `NodeTimeoutError`), delivering zero-millisecond deterministic edge routing for top-level pipelines. → Lab 08 & Lab 12.
+- **Why B, C, and D are incorrect**: Probabilistic tool routing cannot guarantee strict financial settlement DAG execution.
 </details>
 
 ---
 
 ### Question 46
-**Scenario**: Your ADK agent uses the `BigQueryToolset` to run analytical queries. Users are complaining about unpredictable latency: sometimes answers take 2 seconds, sometimes 30 seconds. 
+**Scenario**: Whenever a hospital partner uploads an HL7/PDF referral package into a Cloud Storage bucket, a headless ADK agent should wake up asynchronously—without any interactive chat UI—extract structured referral fields, and post an event downstream.
 
-**How should you use Google Cloud Observability to troubleshoot this issue?**
-- **A)** Check the Cloud Run CPU utilization graph.
-- **B)** Enable ADK telemetry (`adk telemetry enable`) and use **Cloud Trace** to examine the distributed spans. You can pinpoint exactly whether the latency is in the LLM generation phase (`trace_call_llm`), the tool invocation phase (`trace_tool_call`), or the BigQuery execution backend.
-- **C)** Review IAM audit logs to see if permissions are changing dynamically.
-- **D)** SSH into the container and read the `/var/log/syslog` file.
+**Which ADK integration module and security binding should trigger this workflow?**
+- **A)** `google.adk.integrations.eventarc` (`EventarcToolset` + `CloudEventAttributesBinding`), granting **`roles/run.invoker`** on the agent's Cloud Run service exclusively to the dedicated Eventarc trigger Service Account.
+- **B)** Polling `gsutil ls` every 0.5 seconds inside `UnsafeLocalCodeExecutor`.
+- **C)** Exposing `adk web` publicly to `0.0.0.0/0` without authentication.
+- **D)** Using `VertexAiLoadProfilesTool` as a cron scheduler.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Cloud Trace provides distributed tracing. The ADK telemetry module natively emits spans for LLM calls, tool execution, and orchestration. Viewing these spans in a waterfall chart immediately reveals the bottleneck (e.g., if `trace_tool_call` for BigQuery takes 28 seconds, the database query is slow, not the LLM). → Lab 15 — Observability and Troubleshooting.
-- **Why A is incorrect**: CPU utilization tells you the container is busy or idle, but not *what* phase of the agentic workflow is blocking.
-- **Why C is incorrect**: IAM logs track access, not execution latency of individual tool calls.
-- **Why D is incorrect**: Serverless containers (like Cloud Run) do not allow SSH, and syslog does not provide structured distributed tracing.
+- **Why A is correct**: `EventarcToolset` (`CloudEventAttributesBinding`) binds standard GCS CloudEvents directly into headless ADK runs, while scoping `roles/run.invoker` to the dedicated Eventarc trigger SA prevents unauthorized direct invocations. → Lab 12 & Lab 16.
+- **Why B, C, and D are incorrect**: Polling loops, public unauthenticated dev UIs, and profile loaders are anti-patterns for event-driven pipelines.
 </details>
 
 ---
 
 ### Question 47
-**Scenario**: An agent is deployed to Cloud Run. It requires a 60-second timeout for the LLM to perform deep reasoning, but requests are failing after exactly 10 seconds with a "Gateway Timeout" error.
+**Scenario**: Compare `google_search` and `enterprise_web_search` in `google.adk.tools`. A regulated pharmaceutical support agent needs to ground answers on public FDA drug-recall announcements with verifiable web citations, **without** building custom web scrapers.
 
-**What is the most likely cause of this system failure?**
-- **A)** The Gemini API has a hard 10-second limit.
-- **B)** The Cloud Run container configuration has a `timeout_seconds` limit set too low (e.g., 10 seconds) for the expected LLM execution duration.
-- **C)** The agent is stuck in an infinite reasoning loop.
-- **D)** The BigQuery tool is returning too much data.
+**Which built-in ADK tool should you attach?**
+- **A)** `google_search` (for public web grounding with citations; whereas `enterprise_web_search` targets internal/enterprise web indexes)
+- **B)** `google_maps_grounding`
+- **C)** Custom `BeautifulSoup` scraping inside `UnsafeLocalCodeExecutor`
+- **D)** `exit_loop`
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: When deploying agents, the infrastructure timeout (Cloud Run) must be greater than or equal to the application-level timeout (ADK LLM timeout). If Cloud Run is configured to terminate requests after 10 seconds, it will kill the process before the LLM finishes its 60-second reasoning task. → Lab 14 — Deployment Runtimes.
-- **Why A is incorrect**: Gemini APIs can process requests for much longer than 10 seconds.
-- **Why C is incorrect**: An infinite loop would run until it hits the infrastructure timeout, but the *cause* of the 10-second failure is the infrastructure configuration, not the loop itself.
-- **Why D is incorrect**: Data volume issues cause memory exhaustion (OOM), not immediate Gateway Timeouts.
+- **Why A is correct**: `google_search` connects ADK agents to managed Google Search grounding with structured citation metadata for public web facts, whereas `enterprise_web_search` grounds over indexed enterprise web domains. → Lab 10 — Tools and Skills.
+- **Why B, C, and D are incorrect**: Target geospatial places, fragile ungrounded scraping, or loop termination.
 </details>
 
-### Question 48
-**Scenario**: Your ADK agent uses the Agent Platform Gen AI evaluation service. You have run `adk eval` on a golden dataset and the `multi_turn_task_success_evaluator` scores an average of 45%. 
+---
 
-**What is the most likely actionable insight from this result?**
-- **A)** The model is generating harmful content.
-- **B)** The agent is failing to accomplish the user's end goal across multiple turns (e.g., failing to successfully book a flight after 5 messages).
-- **C)** The deployment environment (GKE) is failing to scale.
-- **D)** The RAG retrieval latency is too high.
+### Question 48
+**Scenario**: Your enterprise already maintains 15 battle-tested Python tools written for **LangChain** (e.g., custom ERP normalizers), and your team is migrating the orchestration layer to **ADK 2.9.0** on tight deadlines without rewriting validated tool logic.
+
+**How should you adopt those tools in ADK?**
+- **A)** Wrap them via **`google.adk.integrations.langchain`** so they conform natively to ADK's `BaseTool` interface.
+- **B)** Deploy 15 separate GKE clusters and call each Python function over A2A.
+- **C)** Paste the LangChain Python source files into the agent's `static_instruction` string.
+- **D)** Rewrite all 15 tools in bash inside `hooks.json`.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: The `multi_turn_task_success_evaluator` measures whether the agent successfully completes the complex, multi-step goal presented by the user over the entire conversational trajectory. A low score means the agent is getting stuck, confused, or failing the objective. → Lab 13 — Agent Evaluation.
-- **Why A is incorrect**: Harmful content is measured by the `safety_evaluator`.
-- **Why C is incorrect**: Evaluation services test agent logic and quality, not Kubernetes infrastructure scaling.
-- **Why D is incorrect**: Latency is measured by telemetry (Cloud Trace), not LLM-as-a-judge task success metrics.
+- **Why A is correct**: `google.adk.integrations.langchain` (alongside `integrations.crewai`) adapts existing third-party ecosystem tools directly into ADK's `BaseTool` contract with zero rewrite. → Lab 10 — Tools and Skills.
+- **Why B, C, and D are incorrect**: Over-engineer network hops or fail to execute Python logic safely.
 </details>
 
 ---
 
 ### Question 49
-**Scenario**: You are analyzing the performance of a newly deployed ADK workflow. You notice in Cloud Logging that the `LlmAgent` is raising `NodeTimeoutError` exceptions.
+**Scenario**: A banking customer-support ADK agent deployed on **GKE** requires **ACID transactional durability** and SQL audit queryability for its multi-turn `Session` records (so compliance auditors can join session events with relational customer tables in **Cloud SQL**), rather than in-memory cache volatility.
 
-**What part of the ADK architecture generates this specific exception?**
-- **A)** The LLM API connection (e.g., Vertex AI API timeout).
-- **B)** The `google.adk.workflow` graph orchestration engine timing out on a specific node.
-- **C)** The `GkeCodeExecutor` taking too long to provision a pod.
-- **D)** The Agent Platform Memory Bank taking too long to semantic search.
+**Which ADK session service should you configure?**
+- **A)** `DatabaseSessionService` (`google.adk.sessions.DatabaseSessionService`) backed by **Cloud SQL** using IAM Database Authentication (`roles/cloudsql.client` + `roles/cloudsql.instanceUser`).
+- **B)** `InMemorySessionService` inside ephemeral GKE pods.
+- **C)** `GcsArtifactService` storing raw pickle files in a public bucket.
+- **D)** `RedisSessionService` with `ttl_seconds=5` and persistence disabled.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: `NodeTimeoutError` is explicitly exported by `google.adk.workflow`. It indicates that a node in the graph workflow (or a `SequentialAgent`/`LoopAgent` which builds on the workflow engine) exceeded its configured `timeout`. → Lab 15 — Observability and Troubleshooting.
-- **Why A, C, and D are incorrect**: While these can cause timeouts, they throw different exceptions (e.g., standard HTTP timeouts, or code executor timeouts). The specific `NodeTimeoutError` is tied to the workflow graph execution bounds.
+- **Why A is correct**: **`DatabaseSessionService`** persists ADK `Session` and `Event` state in relational databases like **Cloud SQL** (Tool #15 in the Exam Guide) with full ACID transactions and IAM DB Auth. → Lab 09 & Lab 14.
+- **Why B, C, and D are incorrect**: Lose session records on pod restarts/TTL expiry or lack relational ACID semantics.
 </details>
 
 ---
 
 ### Question 50
-**Scenario**: Your team wants to implement continuous evaluation (autorating) in a CI/CD pipeline. The pipeline should run automatically every time a developer merges changes to the agent's system prompt.
+**Scenario**: Your enterprise uses **Gemini Enterprise App (`GEApp`)** as the unified employee portal (searching SharePoint and Google Drive with Document-Level ACLs), while a specialized custom Python ADK supply-chain agent runs on **GKE** (`Agent Platform / GEAP`) to solve linear-programming inventory models in gVisor sandboxes. Leadership asks you to *"surface the custom supply-chain agent inside Gemini Enterprise so supply-chain planners can invoke it from their central assistant."*
 
-**Which ADK command should the CI/CD pipeline execute?**
-- **A)** `adk deploy agent_engine`
-- **B)** `adk test`
-- **C)** `adk eval`
-- **D)** `adk optimize`
-
-<details><summary>Show answer</summary>
-
-**Correct Answer: C**
-**Explanation**:
-- **Why C is correct**: The `adk eval` command executes the evaluation pipeline against the defined Eval Sets and evaluators. It is designed to be run in CI/CD to prevent regressions in agent quality when prompts or tool definitions change. → Lab 13 — Agent Evaluation.
-- **Why A is incorrect**: This deploys the agent; it does not evaluate it.
-- **Why B is incorrect**: `adk test` runs pytest on agent test JSON files (traditional unit testing), while `eval` runs the LLM-based autorater framework.
-- **Why D is incorrect**: `optimize` uses GEPA to iteratively rewrite prompts; it is a development tool, not a CI/CD gating check.
-</details>
-
----
-
-### Question 51
-**Scenario**: An agentic workflow involves calling a third-party legacy API that takes exactly 55 seconds to return data. 
-
-**If deploying to Cloud Run, what infrastructure configuration must be adjusted to prevent the agent from failing this tool call?**
-- **A)** Enable Cloud CDN.
-- **B)** Increase the `timeout_seconds` configuration on the Cloud Run service beyond the default.
-- **C)** Switch to a `ContainerCodeExecutor`.
-- **D)** Use a smaller LLM model to compensate for the time.
-
-<details><summary>Show answer</summary>
-
-**Correct Answer: B**
-**Explanation**:
-- **Why B is correct**: Cloud Run has a default request timeout (often 5 minutes or less depending on configuration, but configurable up to 60 minutes). However, if the tool takes 55 seconds, plus LLM generation time, you must ensure both the application-level ADK timeout and the infrastructure-level Cloud Run timeout are explicitly high enough. → Lab 14 — Deployment Runtimes.
-- **Why A is incorrect**: A CDN caches static web assets, which does not help a dynamic 55-second API call.
-- **Why C is incorrect**: `ContainerCodeExecutor` is for code execution sandboxing, not for managing HTTP request timeouts to an external API.
-- **Why D is incorrect**: Using a faster model saves a few seconds of generation time, but the 55-second tool bottleneck remains.
-</details>
-
-## Domain 5: Securing and Governing Agentic Workflows (~15%)
-
-### Question 52
-**Scenario**: An enterprise financial services firm is deploying an autonomous agent that can query account balances and initiate wire transfers up to $10,000. Corporate risk policies dictate that: (1) The agent must never initiate transfers over $1,000 without verified manager sign-off. (2) Prompt injection attacks must be inspected. (3) The agent identity must have a resource ceiling that excludes all unapproved projects and tools.
-
-**Which security architecture fulfills all compliance requirements?**
-- **A)** Implement **Agent Gateway** with **Model Armor** for prompt injection inspection, enforce a **Principal Access Boundary (PAB)** on the agent's **Agent Identity**, and add a **Human-In-The-Loop (HITL)** approval gate (`get_user_choice`) for transactions > $1,000.
-- **B)** Place the agent on a public Cloud Run URL and write regex filters in Python to check for words like "wire" and "transfer".
-- **C)** Give the agent admin Service Account permissions and require the user to enter their personal password in the chat prompt.
-- **D)** Run the agent on a private VM with no IAM roles and disable external API authentication.
+**How should you integrate `GEApp` and your custom GKE ADK agent?**
+- **A)** Expose the GKE ADK agent via **A2A** with an attested **Agent Card**, register it in **`AgentRegistry`**, and connect it into **Gemini Enterprise App (`GEApp`)** with **OAuth 2.0 user identity propagation** via Agent Gateway / Auth Manager.
+- **B)** Rewrite the Python linear-programming solver as a zero-shot prompt inside Agent Designer.
+- **C)** Disable Document-Level ACLs in `GEApp` and share a single admin login across all planners.
+- **D)** Move SharePoint indexing out of Agent Search into `UnsafeLocalCodeExecutor`.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**:
-  - **Model Armor** on **Agent Gateway** intercepts prompt injection and jailbreak attempts.
-  - **Agent Identity** with a **Principal Access Boundary (PAB)** caps the resources the principal can reach (defense-in-depth).
-  - **Human-In-The-Loop (HITL)** deterministic tools (like `request_input` or `get_user_choice`) pause execution and require authenticated human approval for high-risk operations. → Lab 17 — Model Armor and HITL.
-- **Why B is incorrect**: Python regex filters are easily bypassed with prompt obfuscation and do not provide enterprise IAM scoping or HITL governance.
-- **Why C is incorrect**: Admin service accounts violate least privilege, and asking users for passwords in chat prompts is a critical security vulnerability.
-- **Why D is incorrect**: Disabling authentication prevents auditing and violates cloud security policies.
+- **Why A is correct**: Demonstrates how the **Gemini Enterprise** ecosystem fits together: **`GEApp`** serves as the turn-key ACL-aware employee front door, delegating specialized tasks over **A2A** (governed by **`AgentRegistry`**) to custom code-first agents running on **GKE / Cloud Run / Agent Runtime (`GEAP`)** with end-to-end OAuth identity propagation. → Lab 03 & Lab 12.
+- **Why B, C, and D are incorrect**: LLMs cannot replace exact numerical optimization solvers via prompts alone, and disabling ACLs or sandboxes violates security.
+</details>
+
+---
+
+## Domain 4: Evaluating and Deploying Agentic Workflows (~22% · Questions 51–68)
+
+### Question 51
+**Scenario**: You are designing the evaluation suite (`google.adk.evaluation`) for a healthcare **customer support agent**. You have two very different evaluation goals:
+1. **Goal 1 (Deterministic Action Audit)**: Verify that on every prescription-refill request, the agent **always** calls `verify_patient_dob` *before* `submit_refill_request` with exact expected parameters against a golden `.evalset.json`.
+2. **Goal 2 (Open-Ended Tone & Policy Quality)**: Grade whether the agent's free-form explanation of insurance prior-authorization delays is empathetic, avoids medical diagnosis, and cites clinic hours—where hundreds of differently worded answers are equally valid and **no single golden reference string exists**.
+
+**How should you combine ADK Evaluation Metrics vs. Rubrics?**
+- **A)** Use a deterministic **Metric** (`ToolTrajectoryCriterion` / `trajectory_evaluator` with `in_order_match` or `exact_match`) for Goal 1, and use a reference-free autorater **Rubric** (`Rubric` + `RubricsBasedCriterion` / `rubric_based_final_response_quality_v1` judged by `gemini-2.5-pro`) for Goal 2.
+- **B)** Use `Rouge` lexical n-gram overlap for both Goal 1 and Goal 2.
+- **C)** Use `RubricsBasedCriterion` alone without checking tool trajectories, assuming polite prose implies `verify_patient_dob` was called.
+- **D)** Check only `HTTP 200 OK` status codes in pytest.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: Separates **Metrics vs. Rubrics** cleanly: **Metrics** (`ToolTrajectoryCriterion` / `trajectory_evaluator`, `final_response_match_v2`, `Rouge`) compare against deterministic golden trajectories/strings, whereas **Rubrics** (`Rubric` + `RubricsBasedCriterion`, `rubric_based_final_response_quality_v1`) use an out-ranked LLM judge (`gemini-2.5-pro`) to grade open-ended multi-criteria behavioral quality without brittle reference strings! → Lab 13 — Agent Evaluation.
+- **Why B, C, and D are incorrect**: `Rouge` fails on valid paraphrases and ignores tool calls; skipping trajectory metrics misses skipped security/consent tools.
+</details>
+
+---
+
+### Question 52
+**Scenario**: Compare **ADK local evaluation tooling (`adk eval` with `.evalset.json`)** against the managed **Agent Platform Gen AI Evaluation Service (`vertexai.evaluation.EvalTask`)**. Your org needs:
+1. Fast pull-request regression checks on 30 golden edge-case trajectories inside developer Cloud Workstations and CI.
+2. Weekly side-by-side **Pairwise A/B comparison** (`PairwiseMetric`) of `gemini-3.7-flash` vs. a candidate prompt/model upgrade across 10,000 sampled production customer-support turns stored in Cloud Storage / BigQuery, with managed experiment tracking and **Adaptive Rubrics**.
+
+**Which tooling split is architecturally sound?**
+- **A)** Use **`adk eval` (`AgentEvaluator` + `.evalset.json`)** for fast developer/PR regression gating, and use **Agent Platform Gen AI Evaluation Service** (`vertexai.evaluation.EvalTask` with `PairwiseMetric`, `PointwiseMetric`, and `vertex_ai_eval_facade`, using `roles/aiplatform.user` + `roles/bigquery.dataViewer`) for large-scale cloud A/B and continuous production evaluation.
+- **B)** Have human QA engineers read all 10,000 transcripts manually in Notepad every Friday.
+- **C)** Run 10,000 pairwise LLM judge calls synchronously inside a blocking git pre-commit hook on developer laptops.
+- **D)** Replace both tools with `adk migrate session`.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: Objective 4.1 explicitly tests *"Determining the appropriate evaluation framework and tooling (ADK evaluation tooling (evalset), Agent Platform Gen AI evaluation service, custom autoraters)"*. Local `adk eval` excels at fast PR gating on `.evalset.json`, while **Agent Platform Gen AI Evaluation Service** (`EvalTask`, `PairwiseMetric`, `PointwiseMetric`, Adaptive Rubrics) scales to thousands of cloud evaluations and A/B comparisons. → Lab 13 — Agent Evaluation.
+- **Why B, C, and D are incorrect**: Manual review doesn't scale, 10K synchronous pre-commit calls stall engineering, and `adk migrate session` is unrelated.
 </details>
 
 ---
 
 ### Question 53
-**Scenario**: A healthcare agent processes patient medical records. You must ensure that Personal Identifiable Information (PII) and Protected Health Information (PHI) like Social Security Numbers and medical condition codes are masked both before the prompt reaches Gemini and when the agent outputs responses to external APIs.
+**Scenario**: A healthcare scheduling agent scores 96% on `final_response_match_v2` against a 200-case golden dataset. However, clinical QA uncovers two severe production bugs:
+1. On 12% of turns, the agent skips calling `check_insurance_eligibility` yet still outputs a fluent appointment confirmation.
+2. On 6% of turns, the agent invents a `$15 copay` figure that never appeared in the EHR tool output.
 
-**Which Google Cloud security service should be integrated into the Agent Gateway or ADK?**
-- **A)** Cloud Armor Web Application Firewall (WAF)
-- **B)** **Sensitive Data Protection (Cloud DLP)** integrated with **Model Armor** (`ModelArmorPlugin`) sanitization filters.
-- **C)** Secret Manager
-- **D)** Cloud Key Management Service (Cloud KMS)
+**Which two evaluators from `google.adk.evaluation` must you add to catch both bugs deterministically? (Select TWO)**
+- **A)** `trajectory_evaluator` (`ToolTrajectoryCriterion`) to enforce mandatory tool invocation order and precision
+- **B)** `hallucinations_v1` (`HallucinationsCriterion`) to verify every factual claim in the response is grounded in retrieved tool/RAG outputs
+- **C)** `final_response_match_v1`
+- **D)** `SimplePromptOptimizer`
+- **E)** `RedisSessionService`
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answers: A and B**
 **Explanation**:
-- **Why B is correct**: **Sensitive Data Protection (Cloud DLP)** combined with **Model Armor** provides automated real-time inspection, de-identification, masking, and redaction of PII/PHI (SSNs, medical record numbers, names) in both prompt inputs and agent outputs. The `ModelArmorPlugin` in ADK applies this seamlessly. → Lab 17 — Model Armor and HITL.
-- **Why A is incorrect**: Cloud Armor protects against DDoS and Layer 7 web attacks (SQLi, XSS), but does not inspect or redact unstructured semantic PII in LLM payloads.
-- **Why C is incorrect**: Secret Manager stores API keys and database credentials, not real-time payload sanitization.
-- **Why D is incorrect**: Cloud KMS handles cryptographic key encryption at rest/transit, not contextual data de-identification.
+- **Why A and B are correct**: `final_response_match_v2` only compares surface text. **`trajectory_evaluator`** catches skipped mandatory tools (`check_insurance_eligibility`), and **`hallucinations_v1`** catches ungrounded fabricated numbers (`$15 copay`) not backed by tool/RAG context. → Lab 13 — Agent Evaluation.
+- **Why C, D, and E are incorrect**: Do not inspect tool call trajectories or groundedness against tool context.
 </details>
 
 ---
 
 ### Question 54
-**Scenario**: A registered billing agent presents a valid OAuth token to Agent Gateway but requests an unapproved `delete_invoice` tool. 
+**Scenario**: You want every Git pull request in Cloud Build to verify that Python refactors to your ADK workflow state schemas and tool wiring have not broken known-good execution paths—**without** paying token costs or suffering non-deterministic LLM variance on 400 test cases per commit.
 
-**Which two statements regarding governance and access control are correct? (Select TWO)**
-- **A)** The valid OAuth token requires the gateway to allow the request.
-- **B)** Agent Gateway should deny the tool through capability policy mapping and audit the decision.
-- **C)** Agent Registry (`AgentRegistry` metadata) defines the approved agent version, identity, owner, and capabilities that the Gateway uses to make routing and policy decisions.
-- **D)** Model Armor should grant the missing tool permission after inspecting the prompt.
-- **E)** A PAB grants `delete_invoice` because it is narrower than project admin.
+**Which verified `adk` CLI command pair records staging interactions and replays them deterministically in CI?**
+- **A)** `adk conformance record` and `adk conformance test`
+- **B)** `adk optimize` and `adk web`
+- **C)** `adk deploy gke` and `adk telemetry disable`
+- **D)** `adk create` and `adk migrate session`
 
 <details><summary>Show answer</summary>
 
-**Correct Answers: B and C**
-**Explanation**: 
-- **Why B and C are correct**: Authentication (who you are) is not authorization (what you can do). A valid OAuth token simply proves identity. The **Agent Registry** supplies governed inventory/capability metadata (which tools are allowed). The **Agent Gateway** enforces traffic policy by checking the request against the Registry metadata and denying unapproved tool executions. → Lab 18 — Governance, Gateway, Registry.
-- **Why A is incorrect**: Authentication does not imply universal authorization.
-- **Why D is incorrect**: Model Armor inspects content for safety and PII; it does not manage IAM or tool execution grants.
-- **Why E is incorrect**: A Principal Access Boundary (PAB) is a restrictive ceiling; it *caps* resources. It does not *grant* permissions.
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: **`adk conformance record`** captures deterministic interaction traces and **`adk conformance test`** replays them offline in CI/CD to catch state-schema and wiring regressions with zero live LLM cost or randomness. → Lab 15 — Observability and Troubleshooting.
+- **Why B, C, and D are incorrect**: Handle prompt optimization, UI serving, deployment, or schema migration rather than deterministic replay testing.
 </details>
 
 ---
 
 ### Question 55
-**Scenario**: You are implementing a Model Armor plugin in your ADK workflow. You need to decide how the system should behave if the Model Armor API itself becomes briefly unreachable or times out during a screening request.
+**Scenario**: Your data-governance team writes a custom deterministic evaluator in Python (`SqlLimitClauseEvaluator`) that parses every generated BigQuery SQL tool argument and fails if `LIMIT` is missing or exceeds `10000`. You want `adk eval` to invoke this custom evaluator alongside built-in metrics.
 
-**Which configuration parameter controls the fail-closed vs. fail-open behavior?**
-- **A)** `max_iterations`
-- **B)** `block_on_screening_failure` in the `ModelArmorConfig`
-- **C)** `timeout_seconds` in the `GkeCodeExecutor`
-- **D)** `ContentCapturingMode` in `TelemetryConfig`
+**Which ADK evaluation registry must you register your custom evaluator with?**
+- **A)** `metric_evaluator_registry` (in `google.adk.evaluation`)
+- **B)** `AgentRegistry`
+- **C)** `GCPSkillRegistry`
+- **D)** `LLMRegistry`
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: The `block_on_screening_failure` boolean in the `ModelArmorConfig` determines the failure mode. Setting it to `True` means "fail-closed" (if the safety check cannot complete, block the request to ensure security). Setting it to `False` means "fail-open" (prioritize availability over guaranteed screening). This is a classic security architectural decision. → Lab 17 — Model Armor and HITL.
-- **Why A is incorrect**: Controls reasoning loops, not safety screening failures.
-- **Why C is incorrect**: Controls code execution timeouts, not Model Armor behavior.
-- **Why D is incorrect**: Controls observability data, not security enforcement.
+- **Why A is correct**: Custom evaluators in `google.adk.evaluation` register into **`metric_evaluator_registry`** (`custom_metric_evaluator`) so `AgentEvaluator` and `adk eval` can resolve and execute them by metric name. → Lab 13 — Agent Evaluation.
+- **Why B, C, and D are incorrect**: Register live A2A/MCP endpoints, skills, or LLM model adapters.
 </details>
 
 ---
 
 ### Question 56
-**Scenario**: You want to monitor traffic, enforce rate limits, and track API usage specifically for a fleet of decentralized A2A agents interacting across different departments in your organization.
+**Scenario**: You run `RubricsBasedCriterion` using **`gemini-3.5-flash-lite`** as the autorater judge to grade complex multi-document legal-compliance answers generated by **`gemini-2.5-pro`**. Engineers notice the autorater frequently marks nuanced, accurate legal citations as wrong while giving high scores to superficial, confident-sounding hallucinations.
 
-**Which Google Cloud component acts as the central control plane for this agentic traffic?**
-- **A)** Cloud SQL
-- **B)** **Agent Gateway**
-- **C)** Secret Manager
-- **D)** Agent Platform Memory Bank
+**What is the root cause and architectural fix?**
+- **A)** The judge model is weaker than the generator ("judge under-ranking"). Configure `judge_model_options` so the autorater uses a **stronger or equal high-reasoning model** (such as **`gemini-2.5-pro`**) with explicit rubric criteria and `hallucinations_v1`, calibrated against human-labeled golden examples.
+- **B)** Downgrade the legal agent to `gemini-embedding-001` so both models fail equally.
+- **C)** Remove all evaluation rubrics and deploy directly to production.
+- **D)** Increase judge `temperature` to `2.0` so scores average out randomly.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: **Agent Gateway** acts as the API gateway and control plane specifically designed for agentic workflows. It monitors traffic, tracks agent interactions, enforces rate limits, and integrates with the Registry to apply governance policies centrally. → Lab 18 — Governance, Gateway, Registry.
-- **Why A is incorrect**: Cloud SQL is a relational database, not a traffic gateway.
-- **Why C is incorrect**: Secret Manager stores credentials, not traffic routing logic.
-- **Why D is incorrect**: Memory Bank stores conversation history and semantic facts, not API traffic metrics.
+- **Why A is correct**: In LLM-as-a-Judge architectures, the judge must possess reasoning capacity **greater than or equal to** the agent being evaluated (`gemini-2.5-pro` judging `gemini-3.7-flash` or `gemini-2.5-pro` with rubric calibration); a lightweight classifier (`flash-lite`) lacks the reasoning depth to verify complex multi-document synthesis. → Lab 13 — Agent Evaluation.
+- **Why B, C, and D are incorrect**: Degrade accuracy, eliminate quality gates, or inject scoring noise.
 </details>
 
-### Question 57
-**Scenario**: You are tasked with implementing identity propagation for a multi-agent system. The initial Web UI agent receives a user's OAuth 2.0 token. It must pass this token to a backend Specialist Agent, which in turn uses it to query a secure Database MCP server.
+---
 
-**How is identity propagation securely managed in this Google Cloud architecture?**
-- **A)** The Web UI agent extracts the username from the token and passes it as a plaintext string in the prompt to the Specialist Agent.
-- **B)** The **Agent Gateway** intercepts the incoming user request, validates the OAuth token, and injects it into the trusted headers of the A2A protocol payload sent to the Specialist Agent.
-- **C)** The Web UI agent writes the token to a public Cloud Storage bucket for the Specialist Agent to read.
-- **D)** The Specialist Agent uses `UnsafeLocalCodeExecutor` to run a script that steals the token from the Web UI agent's memory.
+### Question 57
+**Scenario**: Your team initially deployed a Python ADK multi-agent assistant onto **Agent Runtime** (`adk deploy agent_engine`) for zero-ops convenience. Six months later, architecture requirements change:
+1. One specialist agent must serve open-weight **`gemma-4-26b-a4b-it`** with custom LoRA adapters on dedicated NVIDIA L4 GPUs inside your VPC.
+2. Multi-turn requests to those GPU pods must use **KV-cache / prefix-cache affinity routing**.
+3. Untrusted user-submitted data-cleaning scripts must run inside **gVisor (`runsc`)** kernel-isolated pods (`GkeCodeExecutor(executor_type="sandbox")`).
+
+**Why must you migrate or deploy these components onto GKE (`adk deploy gke`) instead of Agent Runtime?**
+- **A)** **Agent Runtime** is a serverless managed Python runtime that does not expose custom GPU node pools for self-hosted `vLLM` models, cannot deploy **GKE Inference Gateway** (`InferencePool`), and cannot schedule custom **GKE Agent Sandbox (`gVisor`)** pod templates.
+- **B)** Agent Runtime cannot run Python `google-adk` code or connect to `VertexAiMemoryBankService`.
+- **C)** Agent Runtime only supports Windows Server containers.
+- **D)** Agent Runtime blocks outbound calls to Vertex AI Gemini models.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: Agent Gateway acts as the trusted perimeter. It validates external authentication (OAuth) and propagates that identity securely into internal agent-to-agent (A2A) and agent-to-tool (MCP) calls via trusted header injection, ensuring downstream systems can enforce user-level authorization. → Lab 18 — Governance, Gateway, Registry.
-- **Why A is incorrect**: Passing identity in plaintext prompts strips the cryptographic signature, making it impossible for the database to verify the token.
-- **Why C is incorrect**: Writing active bearer tokens to storage is a massive security breach.
-- **Why D is incorrect**: Running unsafe code to steal memory is a malware pattern, not an enterprise identity propagation architecture.
+- **Why A is correct**: Knowing **Agent Runtime's sweet spot** (zero-ops Python ADK + native `VertexAiSessionService` & `VertexAiMemoryBankService`) vs. its **hard architectural boundaries** (no custom GPU node pools, no GKE Inference Gateway `InferencePool`, no node-level gVisor `GkeCodeExecutor`) is a core Section 4.2 exam distinction. → Lab 14 & Lab 19.
+- **Why B, C, and D are incorrect**: Agent Runtime natively runs Python ADK, integrates with Memory Bank, and calls Gemini on Vertex AI.
 </details>
 
 ---
 
 ### Question 58
-**Scenario**: An ADK agent relies on an `EventarcToolset` to process sensitive internal HR documents uploaded to a Cloud Storage bucket. You must ensure that only the specific Cloud Storage bucket can trigger the agent, and the agent cannot be invoked directly by unauthorized internal users.
+**Scenario**: A stateless webhook-style ADK order-notification agent receives 0 requests overnight and bursts to 8,000 requests/minute during flash sales. Each invocation calls a legacy ERP API that takes **55 seconds** to respond, plus ~4 seconds of `gemini-3.7-flash` generation. Your team wants scale-to-zero cost efficiency and minimal ops overhead, but initial **Cloud Run** deployments occasionally fail with `504 Gateway Timeout` or drop session state across turns.
 
-**How should you configure the security boundary?**
-- **A)** Configure a Principal Access Boundary (PAB) on the Eventarc service account.
-- **B)** Grant the `roles/run.invoker` (or equivalent invocation role) exclusively to the specific Eventarc trigger's Service Account, denying all other users and services.
-- **C)** Use Model Armor to screen the contents of the HR document for unauthorized users.
-- **D)** Set the `allow_egress` flag to `False` on the Cloud Run container.
+**Which Cloud Run architecture fixes both issues cleanly?**
+- **A)** Deploy via `adk deploy cloud_run`, explicitly configure **both** the ADK tool/agent timeout AND the **Cloud Run request `timeout`** above 60 seconds (e.g., 120s) to accommodate the 55s ERP call + retries, and back multi-turn state with **`RedisSessionService`** (or `DatabaseSessionService`).
+- **B)** Put Cloud CDN in front of the dynamic POST endpoint and keep `InMemorySessionService`.
+- **C)** Provision 100 static Compute Engine VMs running 24/7 idle overnight.
+- **D)** Set Cloud Run `timeout=5s` to force the 55-second ERP database to run faster.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: IAM invocation control (e.g., `roles/run.invoker` for Cloud Run) enforces who or what can trigger the agent. By granting it exclusively to the Eventarc trigger's service account, you ensure the agent is strictly event-driven and blocks unauthorized synchronous invocations. → Lab 16 — Agent Identity and Auth.
-- **Why A is incorrect**: A PAB limits what resources a principal can *access*; it does not prevent a principal from being *invoked*.
-- **Why C is incorrect**: Model Armor scans payloads for safety and DLP; it is not an IAM access control mechanism.
-- **Why D is incorrect**: Disabling egress prevents the agent from calling out; it does not prevent unauthorized calls *in* to the agent.
+- **Why A is correct**: **Cloud Run** (`adk deploy cloud_run`) is optimal for bursty scale-to-zero stateless HTTP workloads, provided infrastructure request timeouts exceed total LLM + slow-tool duration and any multi-turn state lives in external `RedisSessionService` / `DatabaseSessionService`. → Lab 14 — Deployment Runtimes.
+- **Why B, C, and D are incorrect**: CDN doesn't accelerate uncached ERP mutations, static VMs waste idle spend, and a 5s timeout kills every 55s call.
 </details>
 
 ---
 
 ### Question 59
-**Scenario**: Your organization uses the `AgentRegistry` to manage hundreds of custom agents. A critical zero-day vulnerability is discovered in a specific LangChain tool used by "Agent v1.0". You deploy "Agent v1.1" with the patched tool.
+**Scenario**: Your security architect audits the CI/CD pipeline deploying ADK agents to **Agent Runtime** (`adk deploy agent_engine`). Currently, a single Service Account (`sa-everything@proj-prod.iam.gserviceaccount.com`) with `roles/owner` both runs Cloud Build deployments AND serves live customer traffic at runtime.
 
-**How do you ensure all incoming enterprise traffic immediately shifts to the patched agent without changing the client applications?**
-- **A)** Email all developers to update their client code to point to the v1.1 endpoint.
-- **B)** Update the `AgentRegistry` metadata to deprecate v1.0 and mark v1.1 as the active production endpoint. The Agent Gateway will automatically route new traffic to v1.1 based on the registry.
-- **C)** Delete the GCP project containing v1.0.
-- **D)** Modify the system prompt of v1.0 to tell the LLM to refuse all requests.
+**How should you refactor IAM roles to enforce strict least-privilege separation of duties?**
+- **A)** Create **two separate Service Accounts**:
+  1. **CI/CD Deployer SA**: Granted deployment permissions (`roles/aiplatform.admin` or custom Reasoning Engine deploy role, `roles/storage.objectAdmin` on the staging bucket, and `roles/iam.serviceAccountUser` **scoped only to the Runtime SA**).
+  2. **Agent Runtime Execution SA**: Granted **only runtime permissions** (`roles/aiplatform.user`, `roles/modelarmor.user`, `roles/cloudtrace.agent`, `roles/logging.logWriter`, plus scoped tool roles) and capped by a **Principal Access Boundary (PAB)**.
+- **B)** Keep a single SA with `roles/editor` and export a JSON key into GitHub Actions secrets without Workload Identity Federation.
+- **C)** Grant the Runtime Execution SA `roles/iam.securityAdmin` so the agent can grant itself new roles when a tool fails with `403`.
+- **D)** Remove all IAM roles from both accounts and disable authentication.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: The Agent Registry acts as the central directory for agent endpoints and metadata. By updating the registry, the Agent Gateway (which relies on registry metadata for routing) dynamically shifts traffic to the new version without any client-side code changes. This is standard agentic governance. → Lab 18 — Governance, Gateway, Registry.
-- **Why A is incorrect**: Relying on developers to update client code is slow and leaves the vulnerable agent exposed in the meantime.
-- **Why C is incorrect**: Deleting the project is destructive, breaks running sessions abruptly, and is terrible operational practice.
-- **Why D is incorrect**: Prompt instructions can be bypassed (jailbroken) and do not physically prevent the vulnerable tool from being loaded in the agent process.
+- **Why A is correct**: Separating **CI/CD control-plane deploy identity** (needs `iam.serviceAccountUser` on the runtime SA + staging/deploy rights) from the **live data-plane Agent Identity** (needs only `roles/aiplatform.user` + narrow tool/telemetry roles + PAB ceiling) prevents a prompt-injected runtime agent from deploying rogue agents or modifying infrastructure! → Lab 14 & Lab 16.
+- **Why B, C, and D are incorrect**: `roles/editor`, static JSON keys, and self-escalating `securityAdmin` agents are catastrophic security anti-patterns.
 </details>
 
 ---
 
 ### Question 60
-**Scenario**: You are developing a custom metric evaluator in `google.adk.evaluation` to check if an agent's SQL queries comply with internal data governance policies (e.g., always including a `LIMIT` clause). 
+**Scenario**: You self-host `gemma-4-31b-it` using `vLLM` across 8 NVIDIA A100 GPU pods on GKE for an interactive customer-support agent that sends a **28,000-token system prompt + tool catalog** on every turn. Behind a standard round-robin L7 HTTP Load Balancer, consecutive turns hit different GPU pods—recomputing the 28K prefill from scratch, spiking Time-To-First-Token (TTFT), and causing KV-cache OOMs whenever nightly batch evaluations run concurrently.
 
-**Which ADK registry must you integrate your custom evaluator with so it can be used by `adk eval`?**
-- **A)** `SkillRegistry`
-- **B)** `metric_evaluator_registry`
-- **C)** `AgentRegistry`
-- **D)** `LLMRegistry`
+**Which GKE architecture resolves both TTFT prefill waste and batch starvation?**
+- **A)** Deploy **GKE Inference Gateway** with an **`InferencePool`** (using the Endpoint Picker extension for **KV-cache / prefix-cache hit affinity** and GPU HBM saturation routing) and **`InferenceModel`** criticality tiers (`Critical` for live customer support, `Sheddable` for nightly batch evaluations).
+- **B)** Switch to an L4 TCP Load Balancer with client-IP affinity and scale HPA on CPU utilization >80%.
+- **C)** Move the 8 A100 vLLM pods to Cloud Run Functions without GPUs.
+- **D)** Delete the 28,000-token tool catalog so the agent guesses tool schemas blindly.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: B**
+**Correct Answer: A**
 **Explanation**:
-- **Why B is correct**: To make a custom evaluation metric available to the ADK's evaluation tooling (`adk eval`), it must be registered with the internal `metric_evaluator_registry`. → Lab 13 — Agent Evaluation.
-- **Why A is incorrect**: `SkillRegistry` is for discovering tools and agent capabilities, not evaluation metrics.
-- **Why C is incorrect**: `AgentRegistry` is for discovering and routing agent endpoints.
-- **Why D is incorrect**: `LLMRegistry` maps model IDs to their implementing provider classes.
+- **Why A is correct**: **GKE Inference Gateway** (`InferencePool` + `InferenceModel`) scrapes real-time `vLLM` KV-cache and queue metrics via its Endpoint Picker (EPP), routing multi-turn prompts to the GPU pod already holding the 28K prefix in HBM KV-cache while shedding `Sheddable` batch evals during traffic spikes to protect `Critical` live turns. → Lab 19 — GKE Inference Gateway and GPUs.
+- **Why B, C, and D are incorrect**: Proxy traffic shares one client IP, CPU % does not track GPU KV-cache HBM saturation, and removing schemas breaks tool calls.
 </details>
 
 ---
 
 ### Question 61
-**Scenario**: Your enterprise architecture team is standardizing terminology and platform boundaries across two initiatives:
-1. Giving 50,000 non-technical employees a unified web interface to search SharePoint, Google Drive, and Jira with automatic Document-Level ACL enforcement and out-of-the-box assistant capabilities.
-2. Building a custom Python ADK multi-agent system that runs code inside GKE gVisor sandboxes and queries VPC-internal Cloud SQL databases via MCP.
+**Scenario**: On a single **GKE** cluster, you must run both:
+1. `InferencePool` `vLLM` pods requiring **NVIDIA L4 GPUs** (`--accelerator type=nvidia-l4`), and
+2. `GkeCodeExecutor(executor_type="sandbox")` pods requiring **GKE Sandbox (`--sandbox type=gvisor`)**.
+Attempting to create one GKE node pool with both flags fails validation.
 
-In exam scenarios and architectural blueprints, the prompt states: *"Connect your custom ADK specialist agent to Gemini Enterprise so employees can invoke it from their central search workspace."*
-
-**How should you interpret "Gemini Enterprise" in this architecture and integrate the two environments?**
-- **A)** "Gemini Enterprise" is now the umbrella brand, and in this context specifically refers to the **Gemini Enterprise App (`GEApp`)** employee web experience. You deploy the custom ADK agent on **GKE** or **Agent Runtime** (part of **Agent Platform / `GEAP`**), register it in **Agent Registry** with an A2A Agent Card, and surface it inside **Gemini Enterprise App (`GEApp`)** with OAuth 2.0 identity propagation.
-- **B)** Rewrite the GKE custom agent entirely as a zero-shot prompt template inside CX Agent Studio, because Gemini Enterprise App cannot invoke external GKE or Cloud Run agents.
-- **C)** Deploy the SharePoint and Drive connectors directly inside a GKE `GkeCodeExecutor` pod without using Agent Search.
-- **D)** Disable Document-Level ACLs in Agent Search and rely on a single shared Service Account for all 50,000 employees.
+**What is the correct GKE topology?**
+- **A)** Provision **two distinct node pools in the same GKE cluster**—a **GPU node pool** (`g2-standard` + L4 GPUs) for `InferencePool` pods and a **CPU gVisor node pool** (`--sandbox="type=gvisor"`) for `GkeCodeExecutor(executor_type="sandbox")` pods—using Kubernetes taints/tolerations and `runtimeClassName: gvisor` to schedule each workload onto its matching pool.
+- **B)** Switch `GkeCodeExecutor` to `UnsafeLocalCodeExecutor` inside the GPU pod.
+- **C)** Switch `GkeCodeExecutor` to `executor_type="job"` on GPU nodes assuming `job` mode provides gVisor `runsc` syscall interception.
+- **D)** Create two separate Google Cloud Organizations.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: **Gemini Enterprise** is the overarching umbrella brand, while **Gemini Enterprise App (`GEApp`, formerly Google Agentspace)** is the turn-key employee search & assistant web application. Real-world enterprise agentic architectures are hybrid: `GEApp` handles turn-key enterprise search (`Agent Search` with ACL inheritance) and acts as the front door, while complex custom agents run on **GKE**, **Cloud Run**, or **Agent Runtime** (`GEAP`) and integrate via **A2A** and **Agent Registry**. → Lab 03 — Enterprise Data and Multimodal & Lab 12 — Multi-Agent and A2A.
-- **Why B is incorrect**: CX Agent Studio / Agent Designer cannot replace custom GKE gVisor code execution or VPC-private MCP workloads.
-- **Why C is incorrect**: Building custom connectors inside a code-execution sandbox violates separation of concerns and loses managed Agent Search ACL indexing.
-- **Why D is incorrect**: Using a single shared Service Account without identity propagation leaks confidential documents across employees.
+- **Why A is correct**: GKE does not combine hardware GPU passthrough and gVisor (`runsc`) on the same VM node pool; separating GPU serving nodes and gVisor sandbox CPU nodes inside one cluster via node selectors/taints is the standard production topology. → Lab 05 & Lab 19.
+- **Why B, C, and D are incorrect**: `UnsafeLocalCodeExecutor` and `executor_type="job"` lack gVisor syscall isolation, and separate Orgs are unnecessary.
 </details>
 
 ---
 
 ### Question 62
-**Scenario**: An application security engineering team wants to automate the remediation of C/C++ and Python application-layer vulnerabilities (CVEs and sanitizer crashes) discovered in their CI pipeline. The solution must autonomously localize the root cause in the repository, synthesize a code patch, reproduce the exploit in an isolated sandbox, and run regression and fuzz tests to prove the patch eliminates the vulnerability before opening a pull request.
+**Scenario**: A multi-agent support workflow exhibits p99 latency spikes of 16 seconds. On each turn, the root agent calls Gemini, fans out to three MCP tools concurrently, and summarizes the result. You need to pinpoint whether the 16-second bottleneck is LLM prefill/generation, one slow MCP server, or parallel fan-in stragglers, using **least-privilege observability IAM**.
 
-**Which Google Cloud coding agent capability and execution environment is purpose-built for this workflow?**
-- **A)** **Code Mender** paired with **GKE Agent Sandbox (`GkeCodeExecutor` with `executor_type="sandbox"`)**
-- **B)** Agent Designer in-console prompt templates with `UnsafeLocalCodeExecutor`
-- **C)** CX Agent Studio Transition Routes with `VertexAiSearchTool`
-- **D)** `VertexAiMemoryBankService` with floating model alias `gemini-flash-latest`
+**Which configuration of `google.adk.telemetry` and IAM roles should you deploy?**
+- **A)** Enable OpenTelemetry export (`adk telemetry enable` / `google.adk.telemetry.google_cloud`) to inspect **`trace_call_llm`**, **`trace_tool_call`**, and **`trace_merged_tool_calls`** waterfall spans in **Cloud Trace**, granting the runtime Service Account **`roles/cloudtrace.agent`**, **`roles/logging.logWriter`**, and **`roles/monitoring.metricWriter`**.
+- **B)** Grant the agent `roles/logging.admin` and SSH into serverless containers to run `top`.
+- **C)** Disable telemetry (`adk telemetry disable`) to save 2 ms and guess which MCP server is slow from monthly billing CSVs.
+- **D)** Check IAM Policy Analyzer logs to measure SQL query latency.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: Objective 2.1 explicitly covers *"Using coding agents to refactor source code, optimize execution runtimes, and patch application-layer vulnerabilities"*. **Code Mender** is Google's autonomous vulnerability-patching coding agent that combines root-cause analysis, patch synthesis, and automated fuzz/regression verification inside a kernel-isolated sandbox (**GKE Agent Sandbox / gVisor**). → Lab 05 — Secure Sandboxes.
-- **Why B is incorrect**: `UnsafeLocalCodeExecutor` runs untrusted exploit and fuzzing payloads directly on the host OS, creating a severe security risk.
-- **Why C is incorrect**: CX Agent Studio is a conversational state machine for customer experience flows, not an autonomous vulnerability-patching agent.
-- **Why D is incorrect**: Memory Bank stores conversational memories across sessions and does not localize or patch code vulnerabilities.
+- **Why A is correct**: ADK natively emits `trace_call_llm`, `trace_tool_call`, and `trace_merged_tool_calls` spans to **Cloud Trace**, immediately exposing straggler MCP calls in a waterfall view, while `roles/cloudtrace.agent` + `roles/logging.logWriter` + `roles/monitoring.metricWriter` provide write-only telemetry least privilege. → Lab 15 — Observability and Troubleshooting.
+- **Why B, C, and D are incorrect**: Over-privilege the agent or fail to attribute per-phase distributed latency.
 </details>
 
 ---
 
 ### Question 63
-**Scenario**: You are deploying a custom ADK multi-agent system. Initially, the team planned to deploy all agents to **Agent Runtime** (`adk deploy agent_engine`) to minimize operational overhead. However, the updated security and model architecture introduces three new requirements:
-1. One specialist agent must run an open-weight `gemma-4-26b-a4b-it` model with custom LoRA adapters on dedicated NVIDIA L4 GPUs inside your VPC.
-2. Multi-turn requests to the self-hosted model must route based on live GPU KV-cache utilization and prefix-cache affinity.
-3. Untrusted Python scripts generated by the agent must execute in gVisor kernel-isolated pods (`runtimeClassName: gvisor`).
+**Scenario**: Building on Question 62, your hospital's **HIPAA Privacy Officer** approves exporting span latencies, HTTP status codes, and token-usage counters to Cloud Trace and Cloud Logging, **provided zero raw patient prompts, EHR tool outputs, or LLM responses are ever written into trace span attributes**.
 
-**Why must you choose GKE (`adk deploy gke`) over Agent Runtime for this workload?**
-- **A)** Agent Runtime is a managed serverless environment that does not allow attaching custom GPU node pools for self-hosted vLLM serving, does not support **GKE Inference Gateway** (`InferencePool` KV-cache routing), and cannot schedule custom **GKE Agent Sandbox (`gVisor`)** pod templates.
-- **B)** Agent Runtime does not support the Python `google-adk` SDK or `VertexAiMemoryBankService`.
-- **C)** Agent Runtime cannot make outbound HTTPS calls to Gemini SaaS models.
-- **D)** Agent Runtime only supports Java and Go containers, whereas GKE supports Python.
+**Which ADK telemetry setting enforces this requirement?**
+- **A)** Configure **`TelemetryConfig`** with **`ContentCapturingMode`** set to disable/omit payload content capture in production while keeping span timing and `_token_usage` telemetry active.
+- **B)** Capture full raw PHI payloads into Cloud Trace and ask engineers not to click on spans.
+- **C)** Run `adk telemetry disable` so all latency and error visibility is lost.
+- **D)** Store raw patient prompts in public GitHub Issues instead.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: While **Agent Runtime** (`adk deploy agent_engine`) is ideal for zero-ops Python ADK agents calling managed Gemini APIs, its key architectural limitations are that you cannot provision custom GPU node pools for self-hosted open-weight models (`Gemma 4`), cannot deploy **GKE Inference Gateway** (`InferencePool` / `InferenceModel`) for KV-cache and LoRA routing, and cannot customize node-level **gVisor (`GkeCodeExecutor` `sandbox` mode)** or DaemonSet networking. Those requirements mandate **GKE**. → Lab 14 — Deployment Runtimes & Lab 19 — GKE Inference Gateway and GPUs.
-- **Why B is incorrect**: Agent Runtime natively supports Python `google-adk` and `VertexAiMemoryBankService`.
-- **Why C is incorrect**: Agent Runtime natively calls Gemini models on Vertex AI.
-- **Why D is incorrect**: Agent Runtime is specifically built for Python ADK/agent deployments.
+- **Why A is correct**: **`ContentCapturingMode`** in `google.adk.telemetry.TelemetryConfig` controls whether prompt/response/tool strings are attached to OpenTelemetry spans. Disabling content capture in production preserves full SLO latency and token accounting with zero PHI leakage into observability storage! → Lab 15 & Lab 20.
+- **Why B, C, and D are incorrect**: Either violate HIPAA by persisting raw PHI in trace sinks or blind SRE operations completely.
 </details>
 
 ---
 
 ### Question 64
-**Scenario**: You are hosting `gemma-4-31b-it` using vLLM across a pool of 8 NVIDIA A100 GPU pods on GKE to power a multi-turn financial research agent. Because the agent sends a 32,000-token system prompt and tool specification on every turn, your standard Kubernetes L7 HTTP Load Balancer routes consecutive turns of the same conversation to different GPU pods. This forces every pod to recompute the 32,000-token prefill from scratch, spiking Time-To-First-Token (TTFT) and saturating GPU KV-caches. Additionally, nightly batch evaluation jobs frequently starve live user conversations.
+**Scenario**: In Cloud Logging, your production pipeline raises `google.adk.workflow.NodeTimeoutError` on 3% of runs during peak hours.
 
-**Which architecture should you deploy on GKE to solve both problems?**
-- **A)** Deploy **GKE Inference Gateway** with an **`InferencePool`** (using the Endpoint Picker extension for KV-cache and prefix-cache affinity routing) and configure **`InferenceModel`** criticality tiers (`Critical` for interactive agent turns, `Sheddable` for batch evaluation jobs).
-- **B)** Replace the L7 HTTP Load Balancer with a L4 TCP Network Load Balancer and enable client IP session affinity.
-- **C)** Configure Horizontal Pod Autoscaler (HPA) to scale the vLLM pods based on container CPU utilization above 80%.
-- **D)** Move the vLLM GPU pods from GKE to Cloud Functions Gen 2.
+**What specifically caused `NodeTimeoutError`, and how should you remediate it?**
+- **A)** A `Node` inside a **`google.adk.workflow.Workflow`** graph (or workflow-backed agent) exceeded its configured node `timeout`; inspect `node_tracing` spans in Cloud Trace to identify whether a downstream tool/LLM call inside that node needs caching, parallelization, or a tuned `RetryConfig` / `timeout`.
+- **B)** GKE failed to pull a container image from Docker Hub.
+- **C)** Principal Access Boundary (PAB) rejected an OAuth scope.
+- **D)** `gemini-embedding-2` exceeded 8,192 dimensions.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: **GKE Inference Gateway** (`InferencePool` + `InferenceModel`) uses an Endpoint Picker (EPP) that scrapes real-time vLLM GPU metrics. It routes multi-turn agent requests to the GPU pod that already holds the matching prompt prefix in its KV-cache (eliminating redundant prefill computation and slashing TTFT), routes LoRA requests to pods with the adapter loaded in VRAM, and sheds `Sheddable` batch traffic when KV-cache saturation spikes to protect `Critical` interactive agent turns. → Lab 19 — GKE Inference Gateway and GPUs.
-- **Why B is incorrect**: L4 TCP client-IP affinity fails when requests arrive through a shared Agent Gateway or web backend proxy (all traffic shares the proxy's IP) and has zero awareness of GPU KV-cache memory saturation.
-- **Why C is incorrect**: LLM inference on GPUs is bottlenecked by GPU HBM KV-cache saturation and request queue depth (`vllm:gpu_cache_usage_perc`), not host CPU percentage.
-- **Why D is incorrect**: Cloud Functions does not support multi-A100 GPU pools or stateful vLLM KV-cache pools.
+- **Why A is correct**: `NodeTimeoutError` is raised specifically by `google.adk.workflow` when an orchestrated graph `Node` breaches its execution `timeout` budget. → Lab 08 & Lab 15.
+- **Why B, C, and D are incorrect**: Produce Kubernetes `ImagePullBackOff`, IAM `403 PERMISSION_DENIED`, or invalid-argument errors, not `NodeTimeoutError`.
 </details>
 
 ---
 
 ### Question 65
-**Scenario**: You are designing a GKE cluster that must simultaneously host:
-1. Self-hosted `gemma-4-26b-a4b-it` inference pods requiring NVIDIA L4 GPUs.
-2. ADK `GkeCodeExecutor(executor_type="sandbox")` pods requiring **GKE Sandbox (`gVisor`)** to run untrusted Python scripts generated by coding agents.
+**Scenario**: Production token-cost alerts fire because an autonomous support research `LlmAgent` occasionally enters a **runaway reasoning loop**, calling `search_ticket_archive` 45 times in a row with nearly identical query strings when an obscure product SKU does not exist.
 
-When your DevOps engineer attempts to create a single GKE node pool with both `--accelerator type=nvidia-l4` and `--sandbox type=gvisor`, the `gcloud container node-pools create` command fails.
-
-**What is the correct GKE architectural configuration?**
-- **A)** Create **two separate node pools** within the same GKE cluster: a **GPU node pool** (`g2-standard` with NVIDIA L4 GPUs) for the `InferencePool` vLLM pods, and a dedicated **CPU node pool with GKE Sandbox (`--sandbox="type=gvisor"`)** for the `GkeCodeExecutor(executor_type="sandbox")` pods, using Kubernetes node selectors/taints to schedule each workload onto its matching pool.
-- **B)** Change `GkeCodeExecutor` to `UnsafeLocalCodeExecutor` so all code runs inside the GPU container without gVisor.
-- **C)** Deploy two completely separate GCP organizations because GKE cannot support GPUs and sandboxes in the same cluster.
-- **D)** Switch `GkeCodeExecutor` to `executor_type="job"` on the GPU nodes, because `job` mode provides the exact same gVisor kernel syscall interception as `sandbox` mode.
+**Which two code-level guardrails stop runaway tool loops cleanly? (Select TWO)**
+- **A)** Bound iterative loops with **`max_iterations`** (on `LoopAgent` / `RunConfig`) so execution cannot spin indefinitely.
+- **B)** Implement a **`before_tool_callback`** hook (or stateful plugin) that hashes `(tool_name, normalized_args)` in `session.state` and blocks duplicate repeated queries, returning a deterministic instruction to synthesize findings or state "SKU not found".
+- **C)** Double the Cloud Run memory limit from 2 GiB to 4 GiB.
+- **D)** Remove all search tools so the agent hallucinates SKU specs from memory.
+- **E)** Grant `roles/bigquery.admin` to speed up loop iterations.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: A**
+**Correct Answers: A and B**
 **Explanation**:
-- **Why A is correct**: In GKE, a single node pool cannot combine hardware GPU accelerators with GKE Sandbox (`gVisor` `runsc`) on the same VM nodes. The standard enterprise pattern is a multi-node-pool GKE cluster: a GPU node pool serves the open-weight `InferencePool`, and a separate `--sandbox="type=gvisor"` CPU node pool runs `GkeCodeExecutor(executor_type="sandbox", sandbox_gateway_name=..., sandbox_template=...)`. → Lab 19 — GKE Inference Gateway and GPUs.
-- **Why B is incorrect**: `UnsafeLocalCodeExecutor` removes all isolation and exposes the GPU host and credentials to arbitrary code execution.
-- **Why C is incorrect**: A single GKE cluster natively supports multiple heterogeneous node pools.
-- **Why D is incorrect**: `executor_type="job"` runs standard containers sharing the host Linux kernel and does **not** provide gVisor isolation (explicitly warned in `GkeCodeExecutor`'s docstring).
+- **Why A and B are correct**: Objective 4.2 explicitly tests troubleshooting **"agent reasoning loops"**. Combining hard iteration caps (`max_iterations`) with a deduplicating **`before_tool_callback`** breaks stagnant search cycles gracefully without removing search capability. → Lab 15 — Observability and Troubleshooting.
+- **Why C, D, and E are incorrect**: More RAM lets loops burn even more tokens, removing search causes hallucinations, and IAM admin roles are irrelevant.
 </details>
 
 ---
 
 ### Question 66
-**Scenario**: In ADK 2.9.0, you are building a hierarchical multi-agent system. A top-level `LlmAgent` named `ChiefOrchestrator` needs to dynamically route user requests either to an interactive `SupportAgent` (`LlmAgent`) or to a deterministic 3-step compliance pipeline (`Ingest -> Audit -> Archive`) that must execute in strict sequence as a `sub_agent` of `ChiefOrchestrator`.
+**Scenario**: Four months after launching a telecom customer-support agent with 92% task success, you have **not** changed a single line of agent code or pinned model ID (`gemini-3.7-flash`). Yet continuous production evaluation (`EvalTask` over sampled traces) shows `rubric_based_tool_use_quality_v1` dropping steadily from 0.92 to 0.71 after the company launched three new 5G plan tiers and updated CRM status codes.
 
-When you inspect ADK 2.9.0, you notice `SequentialAgent` emits a `DeprecationWarning` recommending `google.adk.workflow.Workflow`. However, passing a `Workflow` instance inside `ChiefOrchestrator(sub_agents=[...])` raises a validation error.
-
-**How should you architect this in ADK 2.9.0?**
-- **A)** Use `SequentialAgent` for the 3-step compliance sub-pipeline inside `ChiefOrchestrator.sub_agents` (or wrap the `Workflow` inside an `AgentTool`), because ADK 2.9.0's `DeprecationWarning` explicitly states: *"Workflow cannot yet be used as an LlmAgent sub-agent."*
-- **B)** Delete `ChiefOrchestrator` and force all users to call three separate HTTP endpoints manually in order.
-- **C)** Put all three compliance agents inside `ParallelAgent` so they run simultaneously.
-- **D)** Pass `disallow_transfer_to_peers=True` on `Workflow` to bypass the Pydantic type check.
+**What operational phenomenon is occurring, and what is the correct closed-loop response?**
+- **A)** **Concept / Data & Environment Drift**: customer vocabulary and upstream CRM domain values shifted relative to your static prompt examples, RAG corpus, and golden `.evalset.json`. Re-index updated 5G plan docs in RAG/Agent Search, harvest failing production traces (redacted via SDP) into `.evalset.json` via `adk eval_set add_eval_case`, and run `adk optimize` + `adk eval` before redeploying.
+- **B)** Weights of the pinned `gemini-3.7-flash` checkpoint randomly decayed on disk.
+- **C)** Principal Access Boundary policies gradually expire 5% per month.
+- **D)** GKE gVisor converted Python integers into floats.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: As verified in ADK 2.9.0 (`docs/VERIFIED_FACTS.md`), `SequentialAgent` emits: `DeprecationWarning: SequentialAgent is deprecated in favor of Workflow and will be removed in a future version. Workflow cannot yet be used as an LlmAgent sub-agent.` Therefore, when nesting a deterministic sequential pipeline directly inside `LlmAgent.sub_agents` (or wrapping it as a callable `AgentTool`), `SequentialAgent` remains necessary today. → Lab 08 — ADK Fundamentals & Lab 12 — Multi-Agent and A2A.
-- **Why B is incorrect**: Breaks autonomous orchestration by pushing orchestration logic onto the client.
-- **Why C is incorrect**: `ParallelAgent` runs all steps concurrently rather than in the required strict `Ingest -> Audit -> Archive` order.
-- **Why D is incorrect**: `disallow_transfer_to_peers` is an `LlmAgent` field, not a `Workflow` field.
+- **Why A is correct**: Even with a pinned model ID, **agent drift** (Objective 4.2) occurs when external enterprise schemas, product catalogs, and user intents evolve. Continuous evaluation catches the drop, and feeding redacted failure cases back into `.evalset.json` + RAG + `adk optimize` closes the loop. → Lab 13 & Lab 15.
+- **Why B, C, and D are incorrect**: Pinned checkpoints, PAB rules, and gVisor syscalls do not decay over time.
 </details>
 
 ---
 
 ### Question 67
-**Scenario**: Your organization operates a decentralized multi-agent ecosystem across three Google Cloud projects:
-- An **Order Triage Agent** running on **Agent Runtime** (`project-retail`).
-- A **Fraud Scoring Agent** running on **GKE** (`project-risk`) exposed via the **Agent2Agent (A2A)** protocol.
-- A **Ledger MCP Server** running on **Cloud Run** (`project-finance`) exposing BigQuery and Cloud SQL tools via **Model Context Protocol (MCP)**.
+**Scenario**: Your customer-support ADK `App` (`google.adk.apps.App`) loads a static 45,000-token compliance handbook + 30 MCP tool definitions on every turn, and VIP troubleshooting chats often run for 60+ turns—causing growing input-token costs and rising prefill latency by turn 40.
 
-Security policy forbids hardcoding service URLs in agent source code and requires that agents only communicate with centrally vetted A2A peers and MCP servers.
-
-**How should the Order Triage Agent discover and bind to both the Fraud Scoring Agent and the Ledger MCP Server in ADK 2.9.0?**
-- **A)** Instantiate `AgentRegistry(project_id=..., location=...)` from `google.adk.integrations.agent_registry` and call `registry.get_remote_a2a_agent(...)` to bind the A2A Fraud Scoring Agent and `registry.get_mcp_toolset(...)` to bind the governed Ledger `MCPToolset`.
-- **B)** Use `MCPToolset` to connect to the Fraud Scoring Agent and `A2aRemoteAgentConfig` to query the Cloud SQL database directly.
-- **C)** Store hardcoded IP addresses in a public GitHub repository and fetch them using `UnsafeLocalCodeExecutor`.
-- **D)** Use `GCPSkillRegistry` (`get_skill`) to establish network sockets to remote A2A agents.
+**Which two built-in `google.adk.apps.App` configurations directly optimize cost and multi-turn latency? (Select TWO)**
+- **A)** Configure **`context_cache_config`** on `App` (combined with `static_instruction`) to cache the invariant 45,000-token handbook and tool schemas across turns.
+- **B)** Configure **`events_compaction_config`** on `App` to periodically summarize/compact older conversational event turns instead of resending all 60 raw turns verbatim.
+- **C)** Set `block_on_screening_failure=False` on `ModelArmorConfig`.
+- **D)** Switch session storage from `RedisSessionService` to `UnsafeLocalCodeExecutor`.
+- **E)** Paste the 45,000-token handbook a second time inside every user message.
 
 <details><summary>Show answer</summary>
 
-**Correct Answer: A**
+**Correct Answers: A and B**
 **Explanation**:
-- **Why A is correct**: `AgentRegistry` (`google.adk.integrations.agent_registry.AgentRegistry`) is the central discovery and governance plane that ties **A2A** and **MCP** together. It provides `get_remote_a2a_agent()` (which resolves the remote agent's endpoint and Agent Card from the registry) and `get_mcp_toolset()` (which returns a ready-to-use `MCPToolset` for a registered MCP server). → Lab 12 — Multi-Agent and A2A & Lab 20 — E2E AI Threat Defense.
-- **Why B is incorrect**: Reverses the protocols: **A2A** is for agent-to-agent negotiation, while **MCP** is for agent-to-tool/database connections.
-- **Why C is incorrect**: Hardcoding IPs and running `UnsafeLocalCodeExecutor` violates both dynamic governance and sandbox security.
-- **Why D is incorrect**: `GCPSkillRegistry` manages reusable skill instructions/frontmatter (`L1/L2/L3`), not live A2A agent endpoints or MCP server discovery.
+- **Why A and B are correct**: Verified on `google.adk.apps.App(name, root_agent, plugins, events_compaction_config, context_cache_config, resumability_config)`: **`context_cache_config`** cuts token cost and TTFT on large static instructions/schemas, while **`events_compaction_config`** bounds multi-turn history growth! → Lab 08, Lab 09 & Lab 15.
+- **Why C, D, and E are incorrect**: Weaken security, misuse code executors, or double token waste.
 </details>
 
 ---
 
 ### Question 68
-**Scenario**: You are designing an iterative code-review architecture in ADK where a `GeneratorAgent` writes a SQL migration script and stores it in `session.state["draft_sql"]` via `output_key="draft_sql"`. A `CriticAgent` then validates the SQL against schema rules. This `Generator -> Critic` cycle must repeat until `CriticAgent` approves the SQL, or stop after at most 4 iterations to prevent an infinite billing loop.
+**Scenario**: During an evaluation audit of a multi-turn technical-support agent, `trajectory_evaluator` reports 95% (it calls the right diagnostic tools), `hallucinations_v1` reports 99% (no fabricated facts), yet **`multi_turn_task_success_evaluator`** scores only **48%** because the agent stops after printing raw diagnostic JSON without ever executing the final router-reboot step the user originally asked for.
 
-**Which ADK orchestration pattern and termination mechanism should you configure?**
-- **A)** Wrap `GeneratorAgent` and `CriticAgent` inside a `LoopAgent(max_iterations=4, sub_agents=[GeneratorAgent, CriticAgent])` and equip `CriticAgent` with the built-in `exit_loop` tool from `google.adk.tools` to terminate early when the SQL passes validation.
-- **B)** Use `ParallelAgent` with `max_concurrency=4` and call `transfer_to_agent` inside a prompt.
-- **C)** Set `block_on_screening_failure=True` on `ModelArmorConfig` to stop the loop after 4 turns.
-- **D)** Rely on the LLM to count to 4 in its system prompt without `max_iterations`.
+**Why was `multi_turn_task_success_evaluator` essential here?**
+- **A)** Individual tool calls can be valid and grounded (`trajectory` / `hallucinations`), yet the agent still fails to **complete the user's end-to-end multi-turn goal**—which `multi_turn_task_success_evaluator` specifically measures across the full conversation.
+- **B)** `multi_turn_task_success_evaluator` measures Kubernetes pod CPU throttling.
+- **C)** `hallucinations_v1` only works on audio files.
+- **D)** `trajectory_evaluator` deletes the final turn of every session.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: `LoopAgent` enforces a hard deterministic cap via `max_iterations=4` (preventing runaway token loops), while the built-in `exit_loop` tool (`from google.adk.tools import exit_loop`) allows `CriticAgent` to break out of the loop immediately once the quality criteria are met. → Lab 08 — ADK Fundamentals & Lab 12 — Multi-Agent and A2A.
-- **Why B is incorrect**: `ParallelAgent` executes sub-agents concurrently in a single pass, not iteratively in a generator-critic feedback cycle.
-- **Why C is incorrect**: `ModelArmorConfig` screens for prompt injection/safety violations, not iterative convergence.
-- **Why D is incorrect**: Prompt-based counting is probabilistic and cannot guarantee protection against runaway reasoning loops.
+- **Why A is correct**: Each ADK evaluator covers an orthogonal failure axis: tool sequence (`trajectory_evaluator`), factual grounding (`hallucinations_v1`), response rubric quality (`rubric_based_final_response_quality_v1`), and **end-to-end goal completion across turns** (`multi_turn_task_success_evaluator`). → Lab 13 — Agent Evaluation.
+- **Why B, C, and D are incorrect**: Misdescribe ADK's built-in evaluation modules.
 </details>
 
 ---
 
-### Question 69
-**Scenario**: Your medical-device company must deploy an on-premise/edge-compatible open-weight model on a GKE cluster with a tight GPU budget (single NVIDIA L4 24 GB GPU per node). You need a model from the Gemma 4 family with a 262,144-token context window that maximizes tokens-per-second throughput and minimizes active-parameter memory bandwidth per generated token.
+## Domain 5: Securing and Governing Agentic Workflows (~15% · Questions 69–80)
 
-**Which verified model ID from the Gemini/Gemma catalog should you select?**
-- **A)** `gemma-4-26b-a4b-it`
-- **B)** `gemma-4-31b-it`
-- **C)** `gemini-2.5-pro`
-- **D)** `gemini-embedding-2`
+### Question 69
+**Scenario**: A development team deploying an ADK customer-support agent to GKE asks you to generate a downloadable **Service Account JSON key file**, base64-encode it into a Kubernetes Secret, and mount it into the agent pod so the agent can call Vertex AI, BigQuery, and third-party OAuth APIs.
+
+**Why must you reject this design, and what is the Google Cloud-recommended credential architecture?**
+- **A)** Static JSON keys are long-lived, exfiltratable bearer secrets (blocked by Org Policy `constraints/iam.disableServiceAccountKeyCreation`). Instead, use **Agent Identity** (`google.adk.integrations.agent_identity` — `GcpAuthProvider` / `GcpAuthProviderScheme` + GKE Workload Identity Federation) to mint **short-lived, auto-rotated OIDC/OAuth tokens** managed via `AuthProviderCredentialsServiceClient`, governed by a **Principal Access Boundary (PAB)**.
+- **B)** Base64-encoding JSON keys is fine as long as you also paste a backup copy into `GEMINI.md`.
+- **C)** Replace the Service Account JSON key with a personal Google Workspace Super Admin refresh token.
+- **D)** Disable TLS and authentication on all internal APIs inside the VPC.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: `gemma-4-26b-a4b-it` is the open-weights Mixture-of-Experts (MoE) variant in the Gemma 4 family (26B total parameters, ~4B active parameters per token, 262K input / 32K output context). Because only ~4B parameters are activated per forward pass, it delivers substantially higher tokens/sec and lower compute latency on constrained GPUs like NVIDIA L4 compared to the dense 31B model (`gemma-4-31b-it`). → Lab 07 — Model Selection & Lab 19 — GKE Inference Gateway and GPUs.
-- **Why B is incorrect**: `gemma-4-31b-it` is a dense 31B model that activates all 31B parameters on every token, requiring more GPU memory bandwidth and higher latency than the `a4b` MoE variant.
-- **Why C is incorrect**: `gemini-2.5-pro` is a proprietary cloud SaaS model and cannot be self-hosted on edge/GKE GPU nodes.
-- **Why D is incorrect**: `gemini-embedding-2` generates vector embeddings (8,192 input limit) and cannot generate text responses.
+- **Why A is correct**: Safe credential provisioning for agents (Sections 3.2 & 5.1) mandates **zero static Service Account JSON keys**: **Agent Identity** (`GcpAuthProvider` + `AuthProviderCredentialsServiceClient`) and Workload Identity Federation issue short-lived tokens bound to the agent's cryptographic workload identity and capped by a **PAB**. → Lab 16 — Agent Identity and Auth.
+- **Why B, C, and D are incorrect**: Expose long-lived or super-admin credentials or strip zero-trust authentication.
 </details>
 
 ---
 
 ### Question 70
-**Scenario**: When two remote agents communicate across organizational departments using the **Agent2Agent (A2A)** protocol, the calling orchestrator must first inspect what capabilities, input/output MIME types (`application/json`, `text/plain`), and authentication schemes (`OAuth2`, `OIDC`) the remote specialist agent supports before creating an A2A Task. Furthermore, the orchestrator must attach a signed OAuth 2.0 trace/auth header to every outgoing A2A request.
+**Scenario**: An IAM administrator accidentally grants `roles/bigquery.admin` and `roles/storage.admin` at the **Google Cloud Organization root** to the **Agent Identity** of an experimental marketing-analytics agent. Fortunately, your security team previously bound a **Principal Access Boundary (PAB)** policy to that Agent Identity listing **only** `//cloudresourcemanager.googleapis.com/projects/marketing-sandbox-dev` in its `eligible_resources`.
 
-**Which A2A artifacts and ADK classes handle capability advertisement and header injection?**
-- **A)** The remote agent publishes an **Agent Card** (`/.well-known/agent.json`), and the calling ADK agent configures `A2aRemoteAgentConfig` with `request_interceptors` (`RequestInterceptor`) and `card_request_interceptors` (`CardRequestInterceptor`).
-- **B)** The remote agent publishes a `SKILL.md` frontmatter file over FTP, and the caller uses `BigQueryToolset`.
-- **C)** Both agents share a local SQLite database file using `sqlite_span_exporter`.
-- **D)** The caller uses `VertexAiRagMemoryService` to guess the remote agent's URL from vector embeddings.
+When a prompt-injection payload tricks the marketing agent into querying `projects/hr-compensation-prod.payroll.executive_bonuses`, what happens?
+- **A)** The request fails deterministically with **`403 PERMISSION_DENIED`**, because $\text{Effective Access} = \text{IAM Allow} \cap \text{PAB}$. Since `hr-compensation-prod` is outside the PAB's eligible resources ceiling, even an Organization-root IAM Allow grant is neutralized.
+- **B)** The query succeeds because Organization-level `roles/bigquery.admin` overrides PAB policies.
+- **C)** The query succeeds unless `ModelArmorPlugin` recognizes the table name via regex.
+- **D)** PAB only restricts human Workspace users, not Agent Identities.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: In the **A2A** specification and `google.adk.a2a.agent`, remote agents advertise their skills, supported modalities, endpoint URL, and required auth schemes via an **Agent Card**. On the client side, `A2aRemoteAgentConfig` exposes `request_interceptors` and `card_request_interceptors` (`RequestInterceptor` / `CardRequestInterceptor`) to inject OAuth 2.0 bearer tokens and distributed trace headers into A2A handshakes. → Lab 12 — Multi-Agent and A2A.
-- **Why B is incorrect**: `SKILL.md` is used for local/GCS `SkillRegistry` instructions, not A2A network protocol negotiation.
-- **Why C is incorrect**: `sqlite_span_exporter` is a local OpenTelemetry trace exporter, not an inter-agent protocol.
-- **Why D is incorrect**: RAG memory stores semantic facts, not cryptographic A2A capability contracts.
+- **Why A is correct**: Objective 5.1 tests *"Configuring principal access boundary (PAB) policies using Agent Identity"*. A PAB sets a hard identity-centric blast-radius ceiling ($\text{IAM Allow} \cap \text{PAB}$): it never grants permissions by itself, and no IAM Allow binding anywhere in the hierarchy can grant access outside the PAB's eligible resources. → Lab 16 & Lab 20.
+- **Why B, C, and D are incorrect**: IAM Allow never overrides PAB, enforcement occurs at the IAM plane independent of Model Armor, and PAB natively binds to Agent Identities.
 </details>
 
 ---
 
 ### Question 71
-**Scenario**: A healthcare agent passes all `final_response_match_v2` tests on a golden dataset of 200 patient scheduling scenarios. However, in staging, an audit reveals two critical defects:
-1. For 15% of prompts, the agent skips calling the mandatory `verify_insurance_eligibility` tool and still fabricates a polite confirmation message that matches the expected text pattern.
-2. For 5% of prompts, the agent invents a copay dollar amount that does not appear anywhere in the tool output returned by the EHR system.
+**Scenario**: A **HIPAA-regulated patient support agent** receives free-text chat messages in which patients frequently type their **Social Security Number (SSN)**, **Medical Record Number (MRN)**, and **phone number**. Compliance requires that:
+1. SSNs, MRNs, and phone numbers be **masked/redacted into `[REDACTED_SSN]` / cryptographic tokens in-flight** *before* the prompt reaches Gemini AND *before* any model output returns to downstream ticketing tools.
+2. Prompt injection and malicious phishing URLs are blocked simultaneously.
+3. Both the runtime agent and the security services operate under **least-privilege IAM**.
 
-**Which two evaluation modules from `google.adk.evaluation` should you add to your continuous `adk eval` pipeline to catch both defects deterministically?**
-- **A)** `trajectory_evaluator` (to enforce `in_order_match` / `exact_match` on tool invocations) and `hallucinations_v1` (to verify that every claim in the final response is grounded in retrieved tool context)
-- **B)** `final_response_match_v1` and `SimplePromptOptimizer`
-- **C)** `GkeCodeExecutor` and `RedisSessionService`
-- **D)** `TransferToAgentTool` and `preload_memory`
+**Which Model Armor + Sensitive Data Protection (SDP) configuration and IAM setup should you deploy?**
+- **A)** Configure a **Model Armor template (`google.cloud.modelarmor_v1.FilterConfig`)** enabling `PiAndJailbreakFilterSettings`, `MaliciousUriFilterSettings`, and **`SdpFilterSettings` with `SdpAdvancedConfig(inspect_template=..., deidentify_template=...)`**; attach **`ModelArmorPlugin(block_on_screening_failure=True)`**; grant the runtime agent **`roles/modelarmor.user`**; and grant the Model Armor service agent **`roles/dlp.user` + `roles/dlp.inspectTemplatesReader` + `roles/dlp.deidentifyTemplatesReader`**.
+- **B)** Deploy **Cloud Armor** L7 WAF OWASP SQLi rules in front of Cloud Run without Model Armor or SDP.
+- **C)** Use `SdpBasicConfig` expecting custom cryptographic surrogate tokenization without any `deidentify_template`, and grant the runtime agent `roles/modelarmor.admin`.
+- **D)** Ask patients nicely in the welcome message not to type SSNs, with no technical redaction.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: Final-response similarity (`final_response_match_v2`) only checks *what* the agent said, not *how* it got there or whether the facts came from tool outputs. Adding `trajectory_evaluator` verifies the exact tool-call trajectory (catching the skipped `verify_insurance_eligibility` call), while `hallucinations_v1` scores groundedness against the actual tool/RAG context (catching the fabricated copay amount). → Lab 13 — Agent Evaluation.
-- **Why B is incorrect**: `final_response_match_v1` is an older surface-level response comparator that still ignores tool trajectories and ungrounded claims.
-- **Why C is incorrect**: These are execution and session components, not evaluation metrics.
-- **Why D is incorrect**: These are agent routing and memory tools, not evaluation modules.
+- **Why A is correct**: Verified directly in `google.cloud.modelarmor_v1`: **`SdpAdvancedConfig`** links Cloud **Sensitive Data Protection (`inspect_template` + `deidentify_template`)** directly into Model Armor's `FilterConfig`, redacting/tokenizing PHI in-flight alongside prompt-injection (`PiAndJailbreakFilterSettings`) and URL (`MaliciousUriFilterSettings`) screening—while keeping runtime agents strictly on least-privilege **`roles/modelarmor.user`**. → Lab 17 & Lab 20.
+- **Why B is incorrect**: **Cloud Armor** is an HTTP/DDoS L7 WAF; it does **not** perform semantic PHI de-identification or LLM jailbreak detection!
+- **Why C and D are incorrect**: `SdpBasicConfig` only inspects/blocks rather than applying custom `deidentify_template` transformations, `roles/modelarmor.admin` lets the agent weaken its own guardrails, and UI warnings are not HIPAA technical safeguards.
 </details>
 
 ---
 
 ### Question 72
-**Scenario**: You want to run regression tests on your multi-agent ADK workflow on every Git pull request in Cloud Build. However, calling live Gemini models on 500 multi-turn test cases on every commit is too slow, non-deterministic, and expensive. You want to record a known-good interaction trace (including LLM tool-call decisions and tool outputs) in staging and replay it deterministically during CI checks to verify that code refactors have not broken agent state transitions or schema contracts.
+**Scenario**: Your security team already enforces **Model Armor** centrally on **Agent Gateway** at the ingress/egress perimeter of your multi-agent platform. An application architect asks: *"Since Agent Gateway already screens the user's incoming HTTP prompt and final outgoing response with Model Armor, why do we ALSO attach `ModelArmorPlugin` inside our ADK customer-support agent?"*
 
-**Which verified `adk` CLI command pair supports this workflow?**
-- **A)** `adk conformance record` and `adk conformance test`
-- **B)** `adk optimize` and `adk migrate session`
-- **C)** `adk create` and `adk web`
-- **D)** `adk deploy docker` and `adk telemetry disable`
+**What critical attack vector does the in-agent `ModelArmorPlugin` catch that perimeter-only user-prompt screening misses?**
+- **A)** **Indirect Prompt Injection inside mid-loop tool / MCP / RAG outputs**: when the ADK agent fetches an untrusted external email, Jira comment, or web page mid-turn via an MCP tool, `ModelArmorPlugin` (`after_tool_callback` / `before_model_callback`) screens that tool payload *before* feeding it into the LLM—whereas an ingress-only gateway check only saw the user's clean initial prompt!
+- **B)** `ModelArmorPlugin` replaces Kubernetes Horizontal Pod Autoscaling.
+- **C)** Agent Gateway cannot validate OAuth 2.0 tokens unless `ModelArmorPlugin` is disabled.
+- **D)** `ModelArmorPlugin` compiles Python into Rust binaries.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: The `adk conformance` command group (`adk conformance record` and `adk conformance test`) captures deterministic execution recordings and replays them in CI/CD pipelines to detect regressions in agent graph wiring, state schemas, and tool contracts without paying for or waiting on live LLM inference. → Lab 15 — Observability and Troubleshooting.
-- **Why B is incorrect**: `adk optimize` runs the GEPA prompt optimizer, and `adk migrate session` migrates session storage schemas.
-- **Why C is incorrect**: `adk create` scaffolds a project template, and `adk web` launches the interactive local UI.
-- **Why D is incorrect**: `adk deploy docker` builds a container image, and `adk telemetry disable` turns off OpenTelemetry export.
+- **Why A is correct**: Explains the **Gateway + Plugin defense-in-depth** architecture: **Agent Gateway + Model Armor** guarantees org-wide perimeter governance (no unscreened ingress/egress even for non-ADK agents), while in-process **`ModelArmorPlugin`** intercepts **internal mid-loop tool/MCP responses** (`before_model_callback` / `after_tool_callback`) where **indirect prompt injections** hide inside retrieved third-party data! → Lab 17, Lab 18 & Lab 20.
+- **Why B, C, and D are incorrect**: Unrelated to prompt-injection screening layers.
 </details>
 
 ---
 
 ### Question 73
-**Scenario**: A multi-agent customer support system on Google Cloud is experiencing p99 latency spikes of 14 seconds. On a single user turn, the root `LlmAgent` invokes three independent MCP tools in parallel and delegates a sub-task to a remote A2A agent. At the same time, your compliance officer mandates that **Cloud Trace** spans must record tool execution latency, token counts, and parallel tool-merge timings, but **must never capture raw customer PII or prompt text** inside trace attributes in production.
+**Scenario**: For a regulated financial wire-transfer agent using `ModelArmorPlugin`, compliance requires that if the Model Armor API experiences a transient regional network timeout, the agent **must immediately block the turn** rather than letting an unscreened prompt reach the LLM.
 
-**How should you configure `google.adk.telemetry` to meet both the latency-attribution and privacy requirements?**
-- **A)** Enable OpenTelemetry export to Cloud Trace (`trace_call_llm`, `trace_tool_call`, `trace_merged_tool_calls`) and configure `TelemetryConfig` with `ContentCapturingMode` set to disable/redact prompt and response content capture in production while preserving span durations, status codes, and token usage metrics.
-- **B)** Run `adk telemetry disable` in production so no spans are sent to Cloud Trace, and rely on billing invoices to debug latency.
-- **C)** Set `ContentCapturingMode` to capture full raw payloads and grant `roles/cloudtrace.user` to all employees.
-- **D)** Disable parallel tool execution so every tool runs sequentially without `trace_merged_tool_calls`.
+**Which exact boolean field on `ModelArmorConfig` enforces this fail-closed behavior?**
+- **A)** `block_on_screening_failure=True`
+- **B)** `block_on_screening_failure=False`
+- **C)** `allow_egress=True`
+- **D)** `disallow_transfer_to_peers=False`
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: `google.adk.telemetry` instruments LLM calls (`trace_call_llm`), individual tool executions (`trace_tool_call`), and concurrent tool fan-out/fan-in (`trace_merged_tool_calls`), exporting waterfall spans and token counters (`_token_usage`) to Cloud Trace. Setting `ContentCapturingMode` in `TelemetryConfig` to redact/omit payload contents ensures zero PII is written to trace storage while keeping full latency and token observability. → Lab 15 — Observability and Troubleshooting.
-- **Why B is incorrect**: Disabling telemetry removes the ability to attribute latency between `trace_call_llm` and `trace_tool_call`.
-- **Why C is incorrect**: Capturing full raw prompts containing PII in Cloud Trace violates the compliance mandate.
-- **Why D is incorrect**: Forcing sequential tool execution degrades p99 latency even further.
+- **Why A is correct**: In `google.adk.integrations.model_armor.ModelArmorConfig`, **`block_on_screening_failure=True`** enforces **fail-closed** security (blocking execution whenever screening errors or times out), whereas `False` fails open for availability-first non-regulated bots. → Lab 17 — Model Armor and HITL.
+- **Why B, C, and D are incorrect**: `False` fails open, and the other flags belong to `CloudRunSandboxCodeExecutor` and `LlmAgent`.
 </details>
 
 ---
 
 ### Question 74
-**Scenario**: A junior IAM administrator accidentally grants `roles/bigquery.admin` and `roles/storage.admin` at the **Google Cloud Organization root** to the workload identity (`Agent Identity`) of an experimental marketing agent. Fortunately, the security architect had previously bound a **Principal Access Boundary (PAB)** policy to that Agent Identity whose `eligible_resources` rule only lists `//cloudresourcemanager.googleapis.com/projects/marketing-sandbox-dev`.
+**Scenario**: A customer logs into your banking web portal (issuing a user-scoped OAuth 2.0 access token), talks to a `FrontDoorAgent`, which delegates via **A2A** to a `PortfolioAgent`, which queries a `HoldingsMcpServer`. When Bob (`user_id=bob`) asks *"Show my account holdings"*, you must guarantee `HoldingsMcpServer` cryptographically verifies **Bob's** identity and cannot be tricked by prompt injection into returning Alice's holdings.
 
-During a prompt-injection attack, the marketing agent attempts to query `projects/corp-payroll-prod.hr_dataset.salaries`.
-
-**What is the outcome of the query, and why?**
-- **A)** The query fails with `403 PERMISSION_DENIED`. Effective access is the **intersection** of IAM Allow policies and the Principal Access Boundary (`Effective Access = IAM Allow ∩ PAB`). Because `projects/corp-payroll-prod` is outside the PAB's eligible resources ceiling, the Organization-level IAM grant is neutralized.
-- **B)** The query succeeds because an Organization-level IAM Allow policy (`roles/bigquery.admin`) overrides a Principal Access Boundary policy.
-- **C)** The query succeeds unless `ModelArmorPlugin` blocks the SQL syntax.
-- **D)** The query fails only if the agent runs on GKE, because PAB policies do not apply to Agent Runtime or Cloud Run.
+**How should identity propagation be architected across these hops?**
+- **A)** Validate Bob's OAuth 2.0 token at **Agent Gateway** and propagate a cryptographically verifiable user credential/assertion (or OBO exchanged token via **Auth Manager**) through **trusted A2A & MCP protocol headers**—never via LLM-generated prompt text or tool arguments—so `HoldingsMcpServer` enforces row-level authorization on the verified token claim (`sub == bob`).
+- **B)** Pass `"user_id": "bob"` as an LLM-generated string parameter in `get_holdings(user_id: str)` and trust whatever string the LLM outputs.
+- **C)** Run `HoldingsMcpServer` with a single shared database superuser account and filter rows in the system prompt.
+- **D)** Write Bob's bearer token into a world-readable GCS bucket.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: A **Principal Access Boundary (PAB)** policy defines the maximum set of resources a principal can *ever* access across Google Cloud (`Effective Access = IAM Allow ∩ PAB Eligible Resources`). A PAB never grants permissions on its own, and no IAM Allow role—even at the Organization root—can grant access to a resource excluded by the principal's PAB. → Lab 16 — Agent Identity and Auth & Lab 20 — E2E AI Threat Defense.
-- **Why B is incorrect**: IAM Allow policies never override a PAB ceiling; both must allow the target resource.
-- **Why C is incorrect**: IAM + PAB enforcement happens deterministically at the Google Cloud IAM control plane regardless of Model Armor.
-- **Why D is incorrect**: PAB is bound to the **Agent Identity** (principal) and applies universally across all Google Cloud runtimes (Agent Runtime, Cloud Run, GKE, GCE).
+- **Why A is correct**: Objective 5.2 explicitly tests *"Configuring secure access to data and identity propagation (Agent Gateway and Agent Registry)"*. Letting an LLM choose `user_id` as a tool parameter creates an immediate **Confused Deputy** vulnerability under prompt injection; propagating verified OAuth/JWT claims out-of-band in trusted **Agent Gateway / A2A / MCP headers** guarantees row-level security at the data tier. → Lab 16, Lab 18 & Lab 20.
+- **Why B, C, and D are incorrect**: Classic Confused Deputy and credential-exposure vulnerabilities.
 </details>
 
 ---
 
 ### Question 75
-**Scenario**: You are designing an end-to-end **AI Threat Defense** architecture for a regulated banking multi-agent system. The architecture must simultaneously defend against four distinct threats:
-1. Unauthenticated or rate-abusive traffic hitting your A2A and MCP endpoints, plus loss of end-user OAuth 2.0 identity during downstream RAG queries.
-2. Developers or compromised agents attempting to invoke unvetted "shadow" MCP servers or rogue A2A agents.
-3. Indirect prompt injections hidden inside third-party emails fetched by an MCP tool, as well as fail-safe blocking if the content screening API experiences a transient outage.
-4. Lateral movement to non-sandbox GCP projects if an agent's identity is granted overly broad IAM roles.
+**Scenario**: A registered `BillingSupportAgent` presents a valid Agent Identity credential to **Agent Gateway**, but due to a prompt injection it attempts to invoke `delete_customer_ledger` on a Finance MCP server—a destructive capability NOT listed in its approved metadata.
 
-**Which combination of four Google Cloud security controls maps 1:1 to these four threat vectors?**
-- **A)** (1) **Agent Gateway** for ingress policy, rate limiting, and OAuth identity propagation; (2) **Agent Registry** (`AgentRegistry`) for attested A2A/MCP endpoint allowlisting; (3) **Model Armor** (`ModelArmorPlugin` with `block_on_screening_failure=True`) for pre-model/post-tool screening; and (4) **Agent Identity with a Principal Access Boundary (PAB)** for blast-radius containment.
-- **B)** (1) Cloud DNS; (2) `GCPSkillRegistry`; (3) `UnsafeLocalCodeExecutor`; and (4) `InMemorySessionService`.
-- **C)** (1) GKE Inference Gateway; (2) `FallbackModel`; (3) `ModelArmorConfig(block_on_screening_failure=False)`; and (4) `roles/owner`.
-- **D)** (1) System prompt rules ("do not get hacked"); (2) `temperature=0.0`; (3) `SequentialAgent`; and (4) `VertexAiMemoryBankService`.
+**Which two statements accurately describe how Agent Registry and Agent Gateway govern this request? (Select TWO)**
+- **A)** **Agent Registry** maintains the authoritative inventory of attested agent versions, owners, Agent Cards, and **approved tool/MCP capability allowlists**.
+- **B)** **Agent Gateway** acts as the runtime Policy Enforcement Point (PEP), evaluating the authenticated call against **Agent Registry** policy metadata, **denying** `delete_customer_ledger` with `403`, and emitting an immutable audit log.
+- **C)** Because the OAuth/OIDC token is cryptographically valid, Agent Gateway must allow any tool on the MCP server.
+- **D)** A Principal Access Boundary (PAB) automatically grants `delete_customer_ledger` if it is narrower than `roles/owner`.
+- **E)** Model Armor dynamically grants IAM roles when prompts are polite.
+
+<details><summary>Show answer</summary>
+
+**Correct Answers: A and B**
+**Explanation**:
+- **Why A and B are correct**: Authentication (*who is calling*) ≠ authorization (*which capabilities are governed*). **Agent Registry** serves as the governance source of truth, and **Agent Gateway** enforces capability-level authorization, quotas, and audit logging in real time. → Lab 18 & Lab 20.
+- **Why C, D, and E are incorrect**: Valid authn never implies blanket authz, PAB only restricts (never grants), and Model Armor never grants IAM permissions.
+</details>
+
+---
+
+### Question 76
+**Scenario**: Your SOC discovers a critical zero-day vulnerability in a PDF-parsing library bundled inside `ClaimsAgent v2.1`. Your team builds and registers patched `ClaimsAgent v2.2`, and needs **100% of enterprise A2A traffic from 40 upstream callers** to cut over immediately with **zero code redeployments** on the 40 caller apps and instant revocation of `v2.1`.
+
+**Which governance mechanism accomplishes this?**
+- **A)** Update **`AgentRegistry`** to mark `ClaimsAgent v2.2` as the active attested production endpoint and deprecate/quarantine `v2.1`, so **Agent Gateway** and dynamic `registry.get_remote_a2a_agent()` callers route all new traffic to `v2.2` and reject `v2.1` immediately.
+- **B)** Email 40 application teams asking them to edit hardcoded IP addresses next sprint.
+- **C)** Delete the entire GCP Organization.
+- **D)** Append `"Please ignore CVE exploits"` to `v2.1`'s system prompt.
 
 <details><summary>Show answer</summary>
 
 **Correct Answer: A**
 **Explanation**:
-- **Why A is correct**: This is the complete 4-layer Google Cloud **AI Threat Defense** reference architecture:
-  1. **Agent Gateway** enforces authentication, quotas, audit logging, and user OAuth 2.0 identity propagation.
-  2. **Agent Registry** governs discovery of cryptographically attested A2A Agent Cards (`get_remote_a2a_agent`) and approved MCP servers (`get_mcp_toolset`).
-  3. **Model Armor** (`ModelArmorPlugin` with `block_on_screening_failure=True`) screens user prompts and tool outputs (`before_model_callback` / `after_tool_callback`) for indirect prompt injection and PII leaks while failing closed on outages.
-  4. **Agent Identity + Principal Access Boundary (PAB)** enforces an identity-centric blast-radius ceiling (`IAM Allow ∩ PAB`). → Lab 20 — E2E AI Threat Defense.
-- **Why B, C, and D are incorrect**: None of these provide the 4-layer security control plane; setting `block_on_screening_failure=False` fails open during an outage, and prompt engineering (`D`) cannot enforce network, catalog, or IAM boundaries.
+- **Why A is correct**: Decoupling logical agent identity in **`AgentRegistry`** from physical runtime URLs allows **Agent Gateway** and registry-resolved clients to perform instant version cutovers and emergency quarantine revocations across the enterprise. → Lab 18 — Governance, Gateway, Registry.
+- **Why B, C, and D are incorrect**: Leave vulnerable endpoints reachable, cause catastrophic outages, or rely on ineffective prompt text.
 </details>
 
 ---
 
+### Question 77
+**Scenario**: Which IAM role distinction enforces **separation of duties** for **Model Armor** so that central Security Operations engineers can create/update corporate `FilterConfig` templates (`SdpAdvancedConfig`, jailbreak thresholds), while 50 application-team ADK agents can **invoke** `sanitizeUserPrompt` / `sanitizeModelResponse` at runtime **without** being able to weaken or delete those templates?
+
+- **A)** Grant Security Operations **`roles/modelarmor.admin`** (in a dedicated central security project) and grant the 50 runtime Agent Identities **`roles/modelarmor.user`** on those templates.
+- **B)** Grant all 50 runtime Agent Identities `roles/modelarmor.admin`.
+- **C)** Grant all developers `roles/owner` on the security project.
+- **D)** Disable IAM and share a single API key across SecOps and runtime pods.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: Hosting Model Armor templates in a central security project administered via **`roles/modelarmor.admin`** while granting cross-project runtime agents **`roles/modelarmor.user`** guarantees that neither application developers nor compromised agents can tamper with safety/SDP templates! → Lab 17 & Lab 20.
+- **Why B, C, and D are incorrect**: Violate separation of duties and least privilege.
+</details>
+
+---
+
+### Question 78
+**Scenario**: A retail customer-support agent can:
+1. Check order tracking status ($0 risk, read-only),
+2. Issue store-credit goodwill coupons up to $25 (low risk, reversible), and
+3. Process wire/card chargeback reversals over **$250** (high financial & fraud risk, irreversible).
+
+**How should you tier guardrails across these three actions?**
+- **A)** Allow (1) autonomously under read-only IAM (`roles/bigquery.dataViewer` / `roles/discoveryengine.viewer`), enforce deterministic schema + rate/amount bounds in code + Model Armor on (2), and enforce a **mandatory deterministic Human-in-the-Loop (HITL) approval gate** (`get_user_choice` / `request_input` / `LongRunningFunctionTool`) before executing (3).
+- **B)** Require a VP to manually approve every read-only tracking-number lookup, and let wire reversals run autonomously with zero checks.
+- **C)** Rely solely on system instructions (*"Never refund more than $250 unless sure"*) while giving the tool unrestricted Stripe Admin API permissions.
+- **D)** Block all three actions permanently with `ModelArmorPlugin`.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: Objective 5.2 tests *"Designing appropriate safety frameworks and guardrails (Agent Gateway, Model Armor, HITL)"*. Risk-tiered autonomy keeps read-only paths fast while placing deterministic code checks and **HITL approval gates** squarely in front of high-impact, irreversible mutations. → Lab 10 & Lab 17.
+- **Why B, C, and D are incorrect**: Invert risk tiers, rely on jailbreakable prompt text for financial caps, or break business utility.
+</details>
+
+---
+
+### Question 79
+**Scenario**: You are conducting a final HIPAA compliance & security review for a multi-agent **patient customer-support platform** on Google Cloud. Which **complete** set of controls is required before handling live Protected Health Information (PHI)?
+
+- **A)** Executed Google Cloud **BAA**; all in-scope services (Vertex AI / Agent Runtime / GKE, Agent Search, Cloud Storage, Cloud SQL, Model Armor, SDP, Cloud Logging/Trace) inside a **VPC Service Controls (VPC-SC)** perimeter encrypted with **CMEK**; **Model Armor + `SdpAdvancedConfig`** (`inspect_template` + `deidentify_template`) masking unnecessary PHI in-flight; **`ContentCapturingMode`** configured to omit raw prompt/PHI payloads from traces; **Agent Gateway** propagating patient OAuth 2.0 identity; **Agent Identity** with **zero static SA keys** + **Principal Access Boundary (PAB)**; and **deterministic GECX Flows / HITL** for clinical or billing mutations.
+- **B)** Public Cloud Run URLs (`allUsers`), `ContentCapturingMode` logging full raw SSNs/diagnoses to Cloud Trace, static SA JSON keys with `roles/editor`, and Cloud Armor WAF alone without SDP or BAA.
+- **C)** Storing patient PHI in `InMemorySessionService` on shared developer laptops outside VPC-SC.
+- **D)** Using `gemini-flash-latest` over public internet with prompt instructions *"Be HIPAA compliant"*.
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: Synthesizes every layer tested on regulated healthcare/HIPAA scenarios: **BAA + VPC-SC + CMEK** (data residency & perimeter), **Model Armor + SDP `SdpAdvancedConfig`** (in-flight PHI de-identification), **zero-capture `ContentCapturingMode`** (observability privacy), **Agent Gateway OAuth propagation + Agent Identity + PAB** (zero-trust least-privilege IAM), and **deterministic GECX/HITL gates** (clinical/financial safety). → Lab 03, Lab 15, Lab 17 & Lab 20.
+- **Why B, C, and D are incorrect**: Violate multiple mandatory HIPAA technical and administrative safeguards.
+</details>
+
+---
+
+### Question 80
+**Scenario**: In an end-to-end **AI Threat Defense** architecture review for a multi-project enterprise customer-support mesh, map the **four core security threats** to their exact Google Cloud control planes:
+1. Unauthenticated / rate-abusive A2A & MCP traffic and loss of end-user OAuth 2.0 identity across agent hops.
+2. Compromised or shadow agents invoking unapproved rogue MCP servers or unattested peer agents.
+3. Direct user jailbreaks AND indirect prompt injections / PII leaks inside mid-loop MCP tool outputs, including safe behavior during scanner outages.
+4. Over-privileged IAM role grants enabling lateral access to unrelated GCP projects if an agent is hijacked.
+
+**Which 4-control mapping is 100% accurate?**
+- **A)** (1) **Agent Gateway** · (2) **Agent Registry (`AgentRegistry`)** · (3) **Model Armor (`FilterConfig` + `SdpAdvancedConfig` + `ModelArmorPlugin(block_on_screening_failure=True)`)** · (4) **Agent Identity + Principal Access Boundary (PAB)**
+- **B)** (1) Cloud DNS · (2) `GCPSkillRegistry` · (3) `UnsafeLocalCodeExecutor` · (4) `roles/owner`
+- **C)** (1) GKE Inference Gateway · (2) `FallbackModel` · (3) `ModelArmorConfig(block_on_screening_failure=False)` · (4) static Service Account JSON keys
+- **D)** (1) `GEMINI.md` · (2) `temperature=0.0` · (3) `Rouge` · (4) `InMemoryMemoryService`
+
+<details><summary>Show answer</summary>
+
+**Correct Answer: A**
+**Explanation**:
+- **Why A is correct**: This is the complete 4-pillar Google Cloud **AI Threat Defense** architecture:
+  1. **Agent Gateway** enforces authentication, quotas, audit logging, and user OAuth 2.0 identity propagation.
+  2. **Agent Registry** governs discovery of attested A2A Agent Cards (`get_remote_a2a_agent`) and approved MCP servers (`get_mcp_toolset`).
+  3. **Model Armor + SDP** enforces fail-closed (`block_on_screening_failure=True`) prompt-injection, malicious-URI, and PHI/PII sanitization at both perimeter and mid-loop plugin callbacks.
+  4. **Agent Identity + Principal Access Boundary (PAB)** enforces keyless credentials and an unbreakable resource ceiling ($\text{IAM Allow} \cap \text{PAB}$). → Lab 20 — E2E AI Threat Defense.
+- **Why B, C, and D are incorrect**: Confuse GPU inference routing (`GKE Inference Gateway`), fail-open configs, static keys, or non-security components with the 4-layer security plane.
+</details>
+
+---
 
 ## Scoring and Diagnosis
 
-Count your correct answers across all 75 questions (matching the 3-hour, 75-question live exam format) and use this table to plan your final review:
+> [!TIP]
+> **Beta vs. Mid-November GA Calibration**:
+> - This 80-question practice exam mirrors the **~80-question, 3-hour Beta exam** length.
+> - **The GA exam launches in mid-November and will have a lesser question count** (typically ~50–60 questions in 2 hours), using the **exact same percentage weights** below.
 
-| Score | Meaning | Recommended Action |
+| Score (out of 80) | Meaning | Recommended Action |
 | :---: | :--- | :--- |
-| **0–44** | **Foundational gaps.** | Do not take the exam yet. Re-run Tracks 3, 4, and 5 end-to-end. |
-| **45–59** | **Close, but risky.** | You understand the concepts but miss the trade-offs. Review `STUDY_GUIDE.md` and `docs/VERIFIED_FACTS.md`. |
-| **60–75 (≥80%)** | **Ready to test.** | You have mastered the multi-agent architectures, runtime trade-offs, security boundaries, and ADK 2.9.0 API surfaces. |
+| **0–47 (<60%)** | **Foundational gaps.** | Do not book yet. Work through Tracks 3, 4, and 5 plus the Least-Privilege IAM Matrix in [`STUDY_GUIDE.md`](STUDY_GUIDE.md). |
+| **48–63 (60–79%)** | **Close, but risky.** | Audit every missed question below by domain—especially IAM roles, Antigravity customization files, GECX flows, Reranking API, and Rubric vs. Metric distinctions. |
+| **64–80 (≥80%)** | **Exam ready.** | You have strong command of the official 28-tool scope, ADK 2.9.0, IAM/PAB least privilege, HIPAA/support patterns, and multi-agent trade-offs. |
 
-### Domain Breakdown Tracker
+### Domain Breakdown Tracker (Exact Official Weights)
 
-Find your weakest domain to focus your study time efficiently:
-
-| Domain | Your Score | Target (80%) |
-| :--- | :---: | :---: |
-| 1. Low-Code Tools (~13%) | ___ / 9 | 8 |
-| 2. Coding Agents (~17%) | ___ / 12 | 10 |
-| 3. Custom Agents (~33%) | ___ / 25 | 20 |
-| 4. Evaluating & Deploying (~22%) | ___ / 17 | 14 |
-| 5. Securing & Governing (~15%) | ___ / 12 | 10 |
-| **Total** | **___ / 75** | **60** |
+| Official Exam Domain | Question Range | Weight | Your Score | Target (≥80%) |
+| :--- | :---: | :---: | :---: | :---: |
+| **1. Building Agents Using Low-Code Tools** (`GECX`, `GEApp`, Connectors, Multimodal) | Q1 – Q10 | ~13% (12.5%) | ___ / 10 | **8 / 10** |
+| **2. Using Coding Agents for Application Development** (`Antigravity`, `hooks.json`, `SKILL.md`, `Agents CLI`, `Code Mender`, Sandboxes) | Q11 – Q24 | ~17% (17.5%) | ___ / 14 | **12 / 14** |
+| **3. Developing Custom Agents** (`ADK`, Latency Math, Sessions/Memory Bank, `RAG Engine` + Ranking API, Cross-Project `A2A` & `MCP`) | Q25 – Q50 | ~33% (32.5%) | ___ / 26 | **21 / 26** |
+| **4. Evaluating and Deploying Agentic Workflows** (Rubric vs. Metric, Gen AI Eval Service, `Agent Runtime` vs `GKE`, Inference Gateway, Trace/HIPAA) | Q51 – Q68 | ~22% (22.5%) | ___ / 18 | **15 / 18** |
+| **5. Securing and Governing Agentic Workflows** (`Agent Identity`, `PAB`, `Model Armor` + `SDP`, `Agent Gateway`, `Agent Registry`, `HITL`, `HIPAA`) | Q69 – Q80 | ~15% (15.0%) | ___ / 12 | **10 / 12** |
+| **Total** *(with ~32.5% cross-cutting IAM & Identity questions across Domains 1–5)* | **Q1 – Q80** | **100%** | **___ / 80** | **64 / 80** |
 

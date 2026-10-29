@@ -5,16 +5,28 @@
 > [!IMPORTANT]
 > Every fact here was verified by **direct machine inspection**, not by recall or web summary.
 > Verification methods: `L` = live Gemini API `ListModels`, `P` = PyPI JSON API,
-> `I` = Python introspection of the installed package, `D` = official docs URL.
+> `I` = Python introspection of the installed package, `A` = local Antigravity runtime/SDK docs,
+> `D` = official exam-guide PDF & Google Cloud IAM documentation.
 > Anything not verified is explicitly marked **UNVERIFIED**.
 >
 > Authoring rule: **if it is not in this file, do not write it as fact.**
 
-Captured: 2026-09-13
+Captured: 2026-09-13 · Updated with Beta Exam verification: 2026-10-29
 
 ---
 
-## 1. Package versions (P)
+## 1. Exam format, timeline, and delivery notes (D + Beta feedback)
+
+- **Official Exam Guide Source**: [Professional Agentic Architect Certification Exam Guide (PDF)](https://services.google.com/fh/files/misc/professional_agentic_architect_exam_guide_english.pdf) (4 pages: Role Definition, Sections 1–5, and 28 Tools in Scope).
+- **Beta vs. GA Timeline & Question Count**:
+  - **Beta Exam**: Approximately **~80 multiple-choice and multiple-select questions** (3-hour window). Real-world topic emphases documented across this course are informed by **Beta exam** feedback alongside the official Exam Guide.
+  - **GA Launch**: The **Generally Available (GA) exam launches in mid-November** and **will have a lesser number of questions** than the ~80-question Beta form (typically ~50–60 questions in standard 2-hour Google Cloud Professional GA exams). Always confirm current exam length and policies on the official registration page before booking.
+- **Delivery Method**: Available via **online-proctored** (remote) or **onsite-proctored** (testing center) delivery.
+- **Testing Interface Features**: Includes **Mark for Review** and **option Strike-through** (crossing out eliminated distractors on complex scenario stems).
+
+---
+
+## 2. Package versions (P + I)
 
 | Package | Version | Install |
 | :--- | :--- | :--- |
@@ -22,6 +34,11 @@ Captured: 2026-09-13
 | `google-genai` | **2.23.0** | `pip install google-genai` |
 | `a2a-sdk` | **1.1.2** | `pip install a2a-sdk` |
 | `mcp` | **2.2.0** | `pip install mcp` |
+| `google-cloud-aiplatform` | **1.165.1** | `pip install google-cloud-aiplatform` |
+| `google-cloud-modelarmor` | **0.7.1** | `pip install google-cloud-modelarmor` |
+| `google-cloud-discoveryengine` | **0.13.12** | `pip install google-cloud-discoveryengine` |
+| `google-cloud-agentidentitycredentials` | **0.1.1** | `pip install google-cloud-agentidentitycredentials` |
+| `google-cloud-iamconnectorcredentials` | **0.1.1** | `pip install google-cloud-iamconnectorcredentials` |
 
 `google-adk` requires **Python >= 3.10**.
 
@@ -31,7 +48,7 @@ Captured: 2026-09-13
 | :--- | :--- |
 | `google-adk[agent-identity]` | `integrations.agent_identity`, `integrations.agent_registry` |
 | `google-adk[gcp]` | Model Armor (`google-cloud-modelarmor`) |
-| `google-adk[a2a]` | A2A support (`a2a-sdk`) |
+| `google-adk[a2a]` | A2A support (`a2a-sdk`, `RemoteA2aAgent`) |
 | `google-adk[extensions]` | `GkeCodeExecutor` |
 
 > [!TIP]
@@ -39,7 +56,7 @@ Captured: 2026-09-13
 
 ---
 
-## 2. Gemini models — confirmed present in the live API (L)
+## 3. Gemini models — confirmed present in the live API (L)
 
 > Verified by calling `ListModels` on `generativelanguage.googleapis.com/v1beta`.
 > **`gemini-3.7-flash` is REAL.** Do not "correct" it.
@@ -115,7 +132,7 @@ Methods: `embedContent`, `asyncBatchEmbedContent`, `countTextTokens`.
 
 ---
 
-## 3. ADK 2.9.0 API surface (I)
+## 4. ADK 2.9.0 & Cloud SDK API surfaces (I)
 
 ### Top level
 
@@ -123,7 +140,7 @@ Methods: `embedContent`, `asyncBatchEmbedContent`, `countTextTokens`.
 from google.adk import Agent, Runner, Workflow, Context, Event
 ```
 
-### `google.adk.agents`
+### `google.adk.agents` & `RemoteA2aAgent`
 
 ```
 Agent, BaseAgent, BaseAgentConfig, Context, InvocationContext,
@@ -132,6 +149,7 @@ LoopAgent, LoopAgentConfig, ManagedAgent, McpInstructionProvider,
 ParallelAgent, ParallelAgentConfig, RunConfig,
 SequentialAgent, SequentialAgentConfig
 ```
+Plus `google.adk.agents.remote_a2a_agent.RemoteA2aAgent` (`name`, `description`, `agent_card`, `httpx_client`, `timeout`, `a2a_client_factory`, `config: A2aRemoteAgentConfig`, `full_history_when_stateless`, `auth_scheme`, `auth_credential`, `credential_key`).
 
 > [!IMPORTANT]
 > `SequentialAgent` / `ParallelAgent` / `LoopAgent` **still exist and still work in 2.9.0**, but they
@@ -142,301 +160,136 @@ SequentialAgent, SequentialAgentConfig
 > removed in a future version. Workflow cannot yet be used as an LlmAgent sub-agent.
 > ```
 >
-> Read that second sentence carefully — it is the reason the deprecated classes are still
-> necessary. `Workflow` **cannot yet be nested as a sub-agent of an `LlmAgent`**, so a
-> hierarchical design still needs the workflow agents today. This nuance is exactly the kind
-> of thing a beta exam asks about: the answer is neither "they're gone" nor "nothing changed".
->
-> Their MRO is now `-> BaseAgent -> BaseNode -> BaseModel`, i.e. they sit on the graph engine.
-> `Agent` is an alias of `LlmAgent` (identical MRO and fields).
->
-> Pinned by a regression test in `tracks/03_custom_agents/lab_08_adk_fundamentals/tests/`.
+> `Workflow` **cannot yet be nested as a sub-agent of an `LlmAgent`**, so a hierarchical design
+> where an `LlmAgent` delegates to a deterministic sub-pipeline still needs `SequentialAgent` /
+> `ParallelAgent` / `LoopAgent` (or wrapping `Workflow` inside an `AgentTool`).
 
 **`LlmAgent` fields (selected, exact):**
 `name, description, model, instruction, global_instruction, static_instruction, tools, sub_agents, parent_agent, input_schema, output_schema, state_schema, output_key, planner, code_executor, generate_content_config, include_contents, mode ('chat'|'task'|'single_turn'), parallel_worker, disallow_transfer_to_parent, disallow_transfer_to_peers, before_agent_callback, after_agent_callback, before_model_callback, retry_config, timeout, rerun_on_resume, wait_for_output`
 
-**`LoopAgent`** adds `max_iterations`.
-
-**`ManagedAgent`** — backed by the Managed Agents API (`interactions.create`); fields include `agent_id`, `environment`, `agent_config`, `mode='single_turn'`. Only server-side tools supported.
-
-### `google.adk.workflow` — graph orchestration
-
-```
-Workflow, Node, BaseNode, Edge, FunctionNode, JoinNode,
-START, DEFAULT_ROUTE, RetryConfig, NodeTimeoutError, node
-```
-
-`Workflow` fields: `name, description, edges, max_concurrency, graph, input_schema, output_schema, state_schema, retry_config, timeout`.
-`Node` fields add `parallel_worker`, `max_parallel_workers`.
-
-> Maps directly to the exam phrase **"graph workflow"** in objective 3.3.
-
-### `google.adk.sessions`
-
-```
-BaseSessionService, InMemorySessionService, DatabaseSessionService,
-VertexAiSessionService, Session, State, StateSchemaError
-```
-
-### `google.adk.memory`
-
-```
-BaseMemoryService, InMemoryMemoryService,
-VertexAiMemoryBankService, VertexAiRagMemoryService
-```
-
-### `google.adk.artifacts`
-
-```
-BaseArtifactService, InMemoryArtifactService,
-FileArtifactService, GcsArtifactService
-```
-
-### `google.adk.tools`
-
-```
-APIHubToolset, AgentTool, ApiRegistry, AuthToolArguments, BaseTool,
-DiscoveryEngineSearchTool, ExampleTool, FunctionTool,
-LongRunningFunctionTool, MCPToolset, McpToolset, RemoteMcpServer,
-SearchResultMode, ToolContext, TransferToAgentTool,
-VertexAiLoadProfilesTool, VertexAiSearchTool,
-enterprise_web_search, exit_loop, get_user_choice,
-google_maps_grounding, google_search, load_artifacts,
-load_memory, preload_memory, request_input,
-transfer_to_agent, url_context
-```
-
-> [!TIP]
-> `request_input` and `get_user_choice` are the **built-in HITL primitives** (Section 5.2).
-> `load_memory` / `preload_memory` are the memory-recall tools (Section 3.1).
-> `exit_loop` terminates a `LoopAgent` (Section 3.3).
-
-### `google.adk.tools.bigquery`
-
-```
-BigQueryToolset, BigQueryCredentialsConfig, get_bigquery_skill
-```
-
-### `google.adk.models`
-
-```
-BaseLlm, Gemini, Gemma, Claude, LiteLlm, ApigeeLlm, Gemma3Ollama,
-FallbackModel, LLMRegistry, LlmCapabilities, AnthropicGenerateContentConfig
-```
-
-> `FallbackModel` = model failover. `LiteLlm` = third-party/OSS. `Gemma3Ollama` = local self-hosted.
-> Directly supports objective 3.1 "LLM vs SLM, self-hosted vs SaaS, OSS vs proprietary".
-
-### `google.adk.code_executors` — Section 2 sandboxing
-
-```
-BaseCodeExecutor, BuiltInCodeExecutor, ContainerCodeExecutor,
-GkeCodeExecutor, VertexAiCodeExecutor, AgentEngineSandboxCodeExecutor,
-UnsafeLocalCodeExecutor, CodeExecutorContext
-```
-
-Plus `google.adk.integrations.cloud_run.CloudRunSandboxCodeExecutor`
-(runs Python via the `sandbox` CLI **inside** a Cloud Run container; fields include
-`sandbox_bin`, `allow_egress`, `stateful`, `timeout_seconds`, `error_retry_attempts`).
-
-> `GkeCodeExecutor` requires `google-adk[extensions]`.
-> `UnsafeLocalCodeExecutor` is the explicitly-unsafe one — a likely exam distractor.
-
-### `google.adk.plugins`
-
-```
-BasePlugin, PluginManager, LoggingPlugin, DebugLoggingPlugin,
-ReflectAndRetryModelPlugin, ReflectAndRetryToolPlugin
-```
-
-### `google.adk.skills` — **this is the Skill Registry surface**
-
-```
-Skill, SkillRegistry, Frontmatter, Resources, Script,
-DEFAULT_SKILL_SYSTEM_INSTRUCTION,
-load_skill_from_dir, load_skill_from_dir_async,
-load_skills_from_dir, load_skills_from_dir_async,
-load_skill_from_gcs_dir, load_skill_from_gcs_dir_async,
-list_skills_in_dir, list_skills_in_dir_async,
-list_skills_in_gcs_dir, list_skills_in_gcs_dir_async
-```
-
-`Skill` = `frontmatter: Frontmatter` + `instructions: str` + `resources: Resources`.
-Documented as three levels: **L1 frontmatter for discovery**, then instructions, then resources.
-
-`Frontmatter` fields (exact): `name`, `description`, `license`, `compatibility`, `allowed_tools`, `metadata`.
-
-`SkillRegistry` interface methods: `get_skill`, `search_skills`, `search_tool_description`.
-
-### `google.adk.integrations` — maps almost 1:1 to the exam tool list
-
-```
-agent_identity, agent_registry, api_registry, bigquery, cloud_run,
-crewai, daytona, e2b, eventarc, firestore, gcs, langchain, livekit,
-model_armor, oci, parameter_manager, redis, secret_manager,
-skill_registry, slack, vmaas
-```
-
-| Integration | Verified exports |
-| :--- | :--- |
-| `agent_identity` | `GcpAuthProvider`, `GcpAuthProviderScheme` |
-| `agent_registry` | `AgentRegistry` |
-| `api_registry` | `ApiRegistry` |
-| `skill_registry` | `GCPSkillRegistry(project_id, location, credentials)` — "GCP implementation of SkillRegistry using GCP Skill Registry API"; methods `get_skill`, `search_skills`, `search_tool_description` |
-| `model_armor` | `ModelArmorPlugin`, `ModelArmorConfig` |
-| `redis` | `RedisSessionService`, `RedisSessionServiceConfig(uri, host, port, password, ssl, db, ttl_seconds, key_prefix)` |
-| `cloud_run` | `CloudRunSandboxCodeExecutor` |
-| `bigquery` | `BigQueryToolset`, `BigQueryCredentialsConfig`, `get_bigquery_skill` |
-| `gcs` | `GCSToolset`, `GCSAdminToolset`, `GCSCredentialsConfig` |
-| `eventarc` | `EventarcToolset`, `EventarcToolConfig`, `EventarcCredentialsConfig`, `CloudEventAttributesBinding`, `AgentProvided` |
-| `secret_manager` | `SecretManagerClient` |
-
-> `agent_registry` and `api_registry` additionally require the `mcp` package to be installed.
-
-#### `AgentRegistry` — verified signature (exam Section 5.1 / 5.2, and 3.2)
-
-Docstring: *"Client for interacting with the Google Cloud Agent Registry service."*
-
-```python
-from google.adk.integrations.agent_registry import AgentRegistry
-
-registry = AgentRegistry(
-    project_id="my-project",
-    location="us-central1",
-    header_provider=None,   # Callable[[ReadonlyContext], Dict[str, str]] | None
-)
-```
-
-Verified methods:
-
-| Method | Purpose |
-| :--- | :--- |
-| `list_agents()` / `search_agents()` | Discover registered agents |
-| `get_agent_info()` | Fetch a registered agent's metadata |
-| `get_endpoint()` / `list_endpoints()` | Resolve agent endpoints |
-| `get_remote_a2a_agent()` | Build an A2A remote agent from the registry |
-| `list_mcp_servers()` / `search_mcp_servers()` / `get_mcp_server()` | Discover registered MCP servers |
-| `get_mcp_toolset()` | Build an `MCPToolset` from a registered MCP server |
-| `get_model_name()` | Resolve the governed model name |
-
-> [!IMPORTANT]
-> This is the concrete link between **Agent Registry**, **A2A**, and **MCP**: the
-> registry is the discovery/governance plane that hands you a ready-made
-> `MCPToolset` or remote A2A agent. That is an excellent exam talking point.
-
-#### `ModelArmorPlugin` — verified signature (exam Section 5.1 / 5.2)
-
-```python
-from google.adk.integrations.model_armor import ModelArmorPlugin, ModelArmorConfig
-
-plugin = ModelArmorPlugin(
-    config=ModelArmorConfig(
-        prompt_template_name=...,          # str | None
-        response_template_name=...,        # str | None
-        input_blocked_message=...,         # str
-        output_blocked_message=...,        # str
-        block_on_screening_failure=...,    # bool  <- fail-closed vs fail-open
-    ),
-    name="model_armor_plugin",
-    client=None,        # Optional[modelarmor_v1.ModelArmorAsyncClient]
-    credentials=None,
-)
-```
-
-Implements the full plugin callback surface: `before_run_callback`, `on_user_message_callback`,
-`before_agent_callback`, `before_model_callback`, `after_model_callback`, `before_tool_callback`,
-`after_tool_callback`, `after_agent_callback`, `after_run_callback`, `on_event_callback`,
-and the `on_*_error_callback` family.
-
-> `block_on_screening_failure` is the **fail-closed vs fail-open** control — a
-> classic security exam distinction.
-
-#### `GkeCodeExecutor` — verified fields (exam Section 2.1 sandboxing)
-
-Docstring: *"Executes Python code in a dedicated Pod on GKE. This executor supports two modes of execution: 'job' and 'sandbox', which do not provide the same isolation."*
-
-Fields: `executor_type: Literal['job', 'sandbox']`, `namespace`, `image`,
-`cpu_requested`, `mem_requested`, `cpu_limit`, `mem_limit`,
-`kubeconfig_path`, `kubeconfig_context`, `sandbox_gateway_name`, `sandbox_template`,
-`timeout_seconds`, `stateful`, `error_retry_attempts`.
-
-> The docstring explicitly warns the two modes **do not provide the same isolation**.
-> That is exactly the kind of nuance the exam probes.
-
-#### `A2aRemoteAgentConfig` — verified fields
-
-`a2a_message_converter`, `a2a_task_converter`, `a2a_status_update_converter`,
-`a2a_artifact_update_converter`, `a2a_part_converter`, `request_interceptors`,
-`card_request_interceptors`. Built on `a2a_pb2` protobuf types.
-
-
-### `google.adk.auth` — maps to "Auth Manager (OAuth 2.0)"
-
-```
-AuthConfig, AuthCredential, AuthCredentialTypes, AuthScheme, AuthSchemeType,
-BaseAuthProvider, OAuth2Auth, OpenIdConnectWithConfig
-```
-Submodules: `credential_manager`, `credential_service`, `exchanger`, `refresher`,
-`oauth2_credential_util`, `oauth2_discovery`, `auth_preprocessor`, `auth_handler`.
-
-### `google.adk.evaluation`
-
-Public: `AgentEvaluator`.
-
-Evaluator modules present (these are the **real metric names**):
-`final_response_match_v1`, `final_response_match_v2`, `hallucinations_v1`,
-`safety_evaluator`, `trajectory_evaluator`, `response_evaluator`,
-`rubric_based_final_response_quality_v1`, `rubric_based_tool_use_quality_v1`,
-`rubric_based_multi_turn_trajectory_evaluator`,
-`multi_turn_task_success_evaluator`, `multi_turn_tool_use_quality_evaluator`,
-`multi_turn_trajectory_quality_evaluator`, `llm_as_judge`,
-`custom_metric_evaluator`, `metric_evaluator_registry`.
-
-Managers: `local_eval_sets_manager`, `gcs_eval_sets_manager`, `in_memory_eval_sets_manager`,
-`local_eval_set_results_manager`, `gcs_eval_set_results_manager`.
-Services: `local_eval_service`, `base_eval_service`, `vertex_ai_eval_facade`,
-`_vertex_ai_scenario_generation_facade`, `simulation` (pkg).
-
-### `google.adk.planners`
-
-```
-BasePlanner, BuiltInPlanner, PlanReActPlanner
-```
-
-### `google.adk.telemetry`
-
-```
-TelemetryConfig, ContentCapturingMode, tracer,
-trace_call_llm, trace_tool_call, trace_merged_tool_calls, trace_send_data
-```
-Submodules include `google_cloud`, `_agent_engine_metric_exporter`, `_hallucination`,
-`_token_usage`, `sqlite_span_exporter`, `node_tracing`.
-
-### `google.adk.apps`
-
-```
-App(name, root_agent, plugins, events_compaction_config,
-    context_cache_config, resumability_config)
-ResumabilityConfig
-```
-
-### `google.adk.a2a`
-
-Subpackages: `agent`, `converters`, `executor`, `logs`, `utils`, `experimental`, `_compat`.
-`google.adk.a2a.agent` exports:
-`A2aRemoteAgentConfig`, `A2aCardRequestConfig`, `ParametersConfig`,
-`RequestInterceptor`, `CardRequestInterceptor`.
-Requires `google-adk[a2a]`.
-
-### `google.adk.optimization`
-
-GEPA-based prompt/agent optimizers: `agent_optimizer`, `gepa_root_agent_optimizer`,
-`gepa_root_agent_prompt_optimizer`, `simple_prompt_optimizer`, `local_eval_sampler`.
-Exposed via the `adk optimize` CLI command.
+- **Multi-Agent Latency & Context Optimization**:
+  - `SequentialAgent`: End-to-end latency = $\sum T_i$ (sum of sub-agents).
+  - `ParallelAgent`: End-to-end latency = $\max(T_i)$ (slowest concurrent worker).
+  - `LoopAgent`: End-to-end latency = $k \times T_{\text{iter}}$ ($k \le \text{max\_iterations}$, early exit via `exit_loop`).
+  - `transfer_to_agent` (`TransferToAgentTool`): Adds 1 routing LLM hop, then target agent streams directly to user.
+  - `AgentTool`: Parent LLM invokes child agent like a synchronous function and runs **a second parent LLM synthesis hop** ($T_{\text{parent1}} + T_{\text{child}} + T_{\text{parent2}}$).
+  - `Workflow` (`Node` / `Edge` / `FunctionNode` / `JoinNode`): **0ms routing overhead** via deterministic Python edge predicates.
+  - Setting `include_contents='none'` on downstream specialists and passing structured state via `{output_key}` prevents $O(N^2)$ context-window bloat and prefill latency spikes.
+
+### `google.adk.sessions` & `google.adk.memory`
+
+- **Sessions (`google.adk.sessions`)**: `BaseSessionService`, `InMemorySessionService`, `DatabaseSessionService`, `VertexAiSessionService`, `Session`, `State`, `StateSchemaError` + `google.adk.integrations.redis.RedisSessionService`.
+  - State prefix scopes: plain key (current session), `user:` (across sessions for that user), `app:` (global to app), `temp:` (discarded after current invocation).
+- **Memory (`google.adk.memory`)**: `BaseMemoryService`, `InMemoryMemoryService`, `VertexAiMemoryBankService`, `VertexAiRagMemoryService`.
+  - Recall tools: `preload_memory` (eagerly injects relevant memories before every turn — zero extra tool round-trip) vs `load_memory` (reactive tool called only when the LLM decides memory is needed — lower baseline token cost).
+
+### `google.adk.tools` & `google.adk.skills`
+
+- **Tools**: `APIHubToolset, AgentTool, ApiRegistry, AuthToolArguments, BaseTool, DiscoveryEngineSearchTool, ExampleTool, FunctionTool, LongRunningFunctionTool, MCPToolset, McpToolset, RemoteMcpServer, SearchResultMode, ToolContext, TransferToAgentTool, VertexAiLoadProfilesTool, VertexAiSearchTool, enterprise_web_search, exit_loop, get_user_choice, google_maps_grounding, google_search, load_artifacts, load_memory, preload_memory, request_input, transfer_to_agent, url_context`.
+- **Skills (`google.adk.skills` + `integrations.skill_registry.GCPSkillRegistry`)**:
+  - `Skill` = `frontmatter: Frontmatter` (`name`, `description`, `license`, `compatibility`, `allowed_tools`, `metadata`) + `instructions: str` + `resources: Resources`.
+  - Progressive disclosure: **L1** frontmatter (always loaded for lightweight discovery) → **L2** full Markdown `instructions` (loaded when activated) → **L3** `resources` / scripts (loaded on demand).
+
+### RAG Engine & Discovery Engine Ranking / Reranking API (I)
+
+- **`vertexai.preview.rag`** (installed in `google-cloud-aiplatform 1.165.1`; emits deprecation notice pointing toward `agentplatform.Client`):
+  - Corpus & ingestion: `RagCorpus`, `RagFile`, `TransformationConfig(chunking_config=ChunkingConfig(chunk_size=..., chunk_overlap=...))`, `LayoutParserConfig` (Document AI layout-aware table/heading chunking), `LlmParserConfig`.
+  - Retrieval & two-stage reranking: `RagRetrievalConfig(top_k=..., filter=..., ranking=Ranking(rank_service=RankService(model_name=...)) | Ranking(llm_ranker=LlmRanker(model_name=...)), hybrid_search=HybridSearch(alpha=...))`.
+- **`google.cloud.discoveryengine_v1.RankServiceClient`** (Standalone Cross-Encoder Reranking API):
+  - `RankRequest(ranking_config="projects/.../locations/global/rankingConfigs/default_ranking_config", model="semantic-ranker-default@latest", top_n=5, query=..., records=[RankingRecord(id=..., title=..., content=...)])` → returns `RankResponse` with calibrated relevance `score` per `RankingRecord`.
+  - Architectural pattern: **Stage 1 Bi-Encoder ANN recall** (`gemini-embedding-2`, fetch `top_k=50` in milliseconds) → **Stage 2 Cross-Encoder Reranking** (`RankServiceClient`, joint query-chunk cross-attention down to `top_n=5` before LLM prompt injection).
+
+### `google.adk.evaluation` (Rubric vs. Metric) & `vertexai.evaluation` (I)
+
+- **Reference-Based / Deterministic Metrics (`google.adk.evaluation.eval_metrics`)**:
+  - `ToolTrajectoryCriterion` / `trajectory_evaluator` (`exact_match`, `in_order_match`, `any_order_match`) — deterministic check on tool names and arguments against a golden `.evalset.json`.
+  - `final_response_match_v1`, `final_response_match_v2`, `Rouge` — compares final output against a static golden reference answer.
+- **Reference-Free / Rubric-Based Autoraters (`google.adk.evaluation.eval_rubrics` + `eval_metrics`)**:
+  - `Rubric(rubric_id=..., rubric_content=RubricContent(text_property=...), description=..., type=...)` paired with `RubricsBasedCriterion(threshold=..., judge_model_options=..., rubrics=[...])`.
+  - Built-in rubric/groundedness evaluators: `rubric_based_final_response_quality_v1`, `rubric_based_tool_use_quality_v1`, `rubric_based_multi_turn_trajectory_evaluator`, `hallucinations_v1`, `safety_evaluator`.
+  - Use **Metrics** when a deterministic right tool sequence or reference string exists; use **Rubrics** when evaluating open-ended customer support empathy, policy adherence, or multi-valid-path reasoning where no single reference string suffices.
+- **Cloud-Scale Evaluation (`vertexai.evaluation` / Agent Platform Gen AI Evaluation Service)**:
+  - `EvalTask`, `PointwiseMetric`, `PairwiseMetric` (side-by-side A/B model or prompt comparison), `CustomMetric`, `RubricBasedMetric`, `MetricPromptTemplateExamples`.
+  - ADK bridges local `.evalset.json` runs to the managed cloud service via `vertex_ai_eval_facade`.
+
+### `google.cloud.modelarmor_v1` + Sensitive Data Protection (SDP) + `ModelArmorPlugin` (I)
+
+- **Cloud Model Armor SDK (`google.cloud.modelarmor_v1`)**:
+  - `ModelArmorClient` / `ModelArmorAsyncClient`: `sanitize_user_prompt()`, `sanitize_model_response()`, `create_template()`.
+  - `FilterConfig` fields:
+    - `pi_and_jailbreak_filter_settings`: `PiAndJailbreakFilterSettings` (prompt injection & jailbreak detection).
+    - `sdp_settings`: `SdpFilterSettings` with either:
+      - `basic_config`: `SdpBasicConfig(filter_enforcement=...)` (fast inspect/block), OR
+      - `advanced_config`: `SdpAdvancedConfig(inspect_template="projects/.../inspectTemplates/...", deidentify_template="projects/.../deidentifyTemplates/...")` (masks/redacts/tokenizes PII & HIPAA PHI in-flight before the prompt reaches Gemini or before the response reaches the client!).
+    - `malicious_uri_filter_settings`: `MaliciousUriFilterSettings` (blocks phishing/malware links in outputs).
+    - `rai_settings`: `RaiFilterSettings` (hate speech, harassment, dangerous content, sexually explicit).
+- **ADK Integration (`google.adk.integrations.model_armor`)**:
+  - `ModelArmorPlugin(config=ModelArmorConfig(prompt_template_name=..., response_template_name=..., block_on_screening_failure=True))` — `block_on_screening_failure=True` enforces **fail-closed** security.
+  - **Gateway vs. Plugin Defense-in-Depth**: **Agent Gateway + Model Armor** enforces centralized, language-agnostic perimeter screening across all enterprise agents (preventing developers from forgetting a plugin), whereas **`ModelArmorPlugin`** inside ADK additionally intercepts **mid-loop MCP/tool outputs** (`after_tool_callback` / `before_model_callback`) to neutralize indirect prompt injections fetched from third-party tickets or emails.
+
+### Agent Identity, Connector Credentials & Auth Manager (I)
+
+- **Agent Identity (`google.adk.integrations.agent_identity` + `google.cloud.agentidentitycredentials_v1`)**:
+  - `GcpAuthProvider`, `GcpAuthProviderScheme` + `AuthProviderCredentialsServiceClient` (`RetrieveCredentialsRequest(auth_provider=..., user_id=..., scopes=..., continue_uri=..., force_refresh_token=...)`).
+  - Eliminates static JSON Service Account keys (`roles/iam.serviceAccountKeys.create` disabled via Org Policy `iam.disableServiceAccountKeyCreation`); mints short-lived workload OIDC/OAuth tokens bound to a **Principal Access Boundary (PAB)** (`Effective Access = IAM Allow ∩ PAB`).
+- **Gemini Enterprise / Discovery Engine Connector Credentials (`google.cloud.iamconnectorcredentials_v1alpha`)**:
+  - `IAMConnectorCredentialsServiceClient` (`RetrieveCredentialsRequest(connector=..., user_id=..., scopes=..., continue_uri=...)`, `FinalizeCredentialsRequest`).
+  - Two enterprise connector auth modes in Gemini Enterprise (`GEApp`):
+    1. **ACL-Aware Search Indexing (Ingestion Sync)**: Connector Service Account + Workforce Identity Federation ingests documents and ACLs from SharePoint/Jira/Confluence/Drive into **Agent Search**; queries verify user identity so users only retrieve documents matching their ACLs.
+    2. **Real-Time Action / Federated Connectors (3-Legged OAuth 2.0 / 3LO)**: Managed by **Auth Manager** + `IAMConnectorCredentialsServiceClient`; triggers per-user OAuth consent (`uri_consent_required`) so write actions (creating a Jira ticket or Slack post) execute strictly as the authenticated human user.
 
 ---
 
-## 4. `adk` CLI — verified command tree (I)
+## 5. Antigravity customization & governance specification (A)
+
+Verified directly from Antigravity runtime documentation (`jetski-customizations` & `google-antigravity-sdk`):
+
+| Artifact / File | Exact Discovery Path(s) | Purpose & Schema Mechanics |
+| :--- | :--- | :--- |
+| **`GEMINI.md` / `AGENTS.md`** | Walked hierarchically from workspace root up to filesystem root, plus `~/.gemini/GEMINI.md` / `~/.gemini/AGENTS.md` | **Always-on plain Markdown instructions** (no YAML frontmatter). `GEMINI.md` and `AGENTS.md` are peers; subdirectories override/specialize repo-wide conventions for monorepos. |
+| **`rules/*.md`** | `.agents/rules/*.md` (workspace) and `~/.gemini/config/rules/*.md` (user) | Modular rules with YAML frontmatter `trigger`: `always_on`, `model_decision` (loaded when `description` matches task), `glob` (loaded only when active files match e.g. `**/*.tf`), or `manual` (`@rule-name`). Conserves context tokens vs `GEMINI.md`. |
+| **`SKILL.md` & `skills.json`** | `.agents/skills/<name>/SKILL.md`, `~/.gemini/config/skills/<name>/SKILL.md`, and manifest `skills.json` | Reusable task packages with YAML frontmatter (`name`, `description`) + instructions + optional `scripts/`, `references/`, `examples/`. Uses L1/L2/L3 progressive disclosure; `skills.json` indexes skill bundles inside plugins/registries. |
+| **`hooks.json`** | `.agents/hooks.json` (workspace), `~/.gemini/hooks.json` (user), `plugins/<name>/hooks/hooks.json` | Deterministic shell commands triggered at lifecycle events: **`PreToolUse`**, **`PostToolUse`**, **`PreInvocation`**, **`PostInvocation`**, **`Stop`**. Filtered by regex `matcher` (e.g., `"run_command"`, `"write_to_file\|replace_file_content"`). |
+| **`plugin.json`** | `.agents/plugins/<name>/plugin.json` and `~/.gemini/config/plugins/<name>/plugin.json` | Bundles `skills/`, `agents/`, `hooks/hooks.json`, `rules/`, and MCP servers into a versioned distributable unit for enterprise teams. |
+| **`mcp_config.json`** | `~/.gemini/config/mcp_config.json` (and workspace `.agents/mcp.json`) | Registers local **Stdio** (`command`, `args`, `env`) and remote **SSE / Streamable HTTP** (`serverUrl`, `headers`) MCP servers. Supports **eager** vs **lazy-loaded** tool schemas to prevent context bloat. |
+| **Subagents (`agents/`)** | `.agents/agents/<name>.md` (or `agent.json` + `config.yaml`) | Isolated specialist context windows with tool allowlists (`enable_write_tools: false` for read-only security/code reviewers), model routing (`flash`, `pro`, `inherit`), and recursion guards (`max_subagent_depth`, `allowed_subagents`). |
+
+### `hooks.json` stdin/stdout protocol & decision precedence (A)
+
+- Hooks receive **camelCase JSON** on `stdin` (`sessionId`, `transcriptPath`, `cwd`, `hookEventName`, `toolName`, `toolInput`) and return JSON on `stdout`.
+- **`PreToolUse` `permissionDecision` values**: `"allow"`, `"deny"` (hard block; returns `permissionDecisionReason` to agent), `"ask"` (prompt human if not auto-allowed), `"force_ask"` (always require human confirmation even in auto-approve mode), `"overwrite"` (rewrite `updatedInput` before tool runs).
+- **`Stop` hook**: Returning `{"decision": "block", "reason": "Run pytest before finishing"}` prevents the coding agent from prematurely ending its turn until verification passes!
+- **Antigravity SDK `policy` 9-Level Precedence Order** (highest to lowest):
+  1. `session_policies` (runtime dynamic overrides) → 2. `extra_policies` → 3. `agent_config_policies` → 4. `subagent` policies → 5. `hooks` (`hooks.json`) → 6. `workspace` policies → 7. `role` policies → 8. `user` policies → 9. `system_defaults`.
+  - Within the same level, the **most restrictive action wins**: `DENY` > `ASK` > `ALLOW`.
+  - If a custom `when=` predicate raises an unhandled Python exception, Antigravity **fails closed** (`DENY`).
+  - Built-in terminal safety rule: `policy.Rule(tool="run_command", action=policy.Action.ASK, check=policy.confirm_run_command())` combined with `RunCommandConfig(enable_sandbox=True, network_Disabled=True)`.
+
+---
+
+## 6. Least-Privilege Google Cloud IAM Roles Reference Matrix (D)
+
+> [!IMPORTANT]
+> Beta exam feedback consistently highlights that **~30–35% of exam questions** test least-privilege IAM roles, service-specific permissions, cross-project access, and safe credential provisioning (never `roles/owner`, `roles/editor`, or static Service Account keys).
+
+| Workload / Scenario | Least-Privilege Predefined Role(s) | Common Exam Trap / Anti-Pattern |
+| :--- | :--- | :--- |
+| **ADK Agent calling Gemini / Memory Bank / Sessions / RAG Engine on Vertex AI** | `roles/aiplatform.user` (on the target project) | Granting `roles/aiplatform.admin` or `roles/editor` |
+| **Deploying an agent to Agent Runtime (`adk deploy agent_engine`)** | CI/CD deployer: `roles/aiplatform.admin` (or custom Reasoning Engine deploy role) + `roles/iam.serviceAccountUser` on the runtime SA + `roles/storage.objectAdmin` on staging bucket | Running the runtime agent itself as `roles/aiplatform.admin` |
+| **Cross-Project A2A Caller → Cloud Run Specialist Agent** | Grant `roles/run.invoker` **on the specific Cloud Run service** in Project B to Project A's Agent Identity / SA (authenticated via OIDC ID token) | Setting `--allow-unauthenticated` (`allUsers`) or granting project-wide `roles/run.admin` |
+| **Agent querying Agent Search / Gemini Enterprise (`GEApp`) Data Store** | `roles/discoveryengine.viewer` (read/search only) | Granting `roles/discoveryengine.admin` to a runtime query agent |
+| **Connector Indexing Service Account syncing ACLs into Agent Search** | `roles/discoveryengine.editor` (or data store writer) scoped to the target Data Store + read-only source connector scope | Using an employee's personal OAuth token for bulk background indexing |
+| **Agent executing read-only analytical SQL in BigQuery (`BigQueryToolset`)** | `roles/bigquery.jobUser` (on the billing/execution project to run jobs) **+** `roles/bigquery.dataViewer` (scoped to the specific dataset/table) | Granting only `dataViewer` (fails to create query job!) or granting `roles/bigquery.admin` |
+| **Agent connecting to Cloud SQL via IAM Database Auth / MCP Server** | `roles/cloudsql.client` + `roles/cloudsql.instanceUser` | Hardcoding PostgreSQL superuser passwords in prompts or env vars |
+| **Agent reading tool API secrets at startup** | `roles/secretmanager.secretAccessor` **bound on the individual secret resource** (not project-wide) | Storing secrets in `GEMINI.md`, Cloud Run plaintext env vars, or granting project-wide `secretmanager.admin` |
+| **Agent screening prompts/responses via Model Armor (`ModelArmorPlugin`)** | `roles/modelarmor.user` (invoke `sanitizeUserPrompt` / `sanitizeModelResponse`) vs `roles/modelarmor.admin` (security team creating templates) | Letting application developers modify `FilterConfig` templates in prod (`roles/modelarmor.admin`) |
+| **Model Armor Advanced SDP inspecting & de-identifying PHI/PII** | Grant **Model Armor service agent** `roles/dlp.user` + `roles/dlp.inspectTemplatesReader` + `roles/dlp.deidentifyTemplatesReader` | Using Cloud Armor WAF rules expecting semantic SSN/PHI redaction |
+| **Agent exporting OpenTelemetry spans & structured logs** | `roles/cloudtrace.agent` + `roles/logging.logWriter` + `roles/monitoring.metricWriter` | Granting `roles/logging.privateLogViewer` to the agent or capturing raw PHI in spans |
+| **Capping maximum blast radius of an Agent Identity across GCP** | **Principal Access Boundary (PAB)** policy (`roles/iam.principalAccessBoundaryAdmin` to author/bind) | Relying on IAM Allow policies alone (which are additive) |
+
+---
+
+## 7. `adk` CLI — verified command tree & Agent vs. Human Mode (I)
 
 ```
 adk create           Creates a new app in the current folder with prepopulated agent template
@@ -444,35 +297,22 @@ adk run              Runs an agent. If no query is provided, enters interactive 
 adk web              Starts a FastAPI server with Web UI for agents
 adk api_server       Starts a FastAPI server for agents
 adk eval             Evaluates an agent given the eval sets
-adk eval_set         Manage Eval Sets
-   ├─ create
-   ├─ add_eval_case
-   └─ generate_eval_cases
+adk eval_set         Manage Eval Sets (create | add_eval_case | generate_eval_cases)
 adk test             Runs pytest on agent test JSON files under the specified folder
-adk deploy           Deploys agent to hosted environments
-   ├─ agent_engine
-   ├─ cloud_run
-   ├─ docker
-   └─ gke
+adk deploy           Deploys agent to hosted environments (agent_engine | cloud_run | docker | gke)
 adk optimize         Optimizes the root agent instructions using the GEPA optimizer
-adk telemetry        Manage telemetry settings
-   ├─ enable
-   ├─ disable
-   └─ status
-adk conformance      Conformance testing tools for ADK
-   ├─ record
-   └─ test
-adk migrate
-   └─ session
+adk telemetry        Manage telemetry settings (enable | disable | status)
+adk conformance      Conformance testing tools for ADK (record | test)
+adk migrate          Migrate schemas (session)
 ```
 
-> [!IMPORTANT]
-> `adk deploy` has **four** targets: `agent_engine`, `cloud_run`, `docker`, `gke`.
-> Objective 4.2 ("selecting optimal deployment runtime") maps onto exactly this.
+- **Agent Mode vs. Human Mode in Agents CLI (`adk` / `agents-cli`)**:
+  - **Human Mode**: Interactive TTY mode (`adk run`, `adk web`) with ANSI spinners, conversational prompts, and interactive debugging for developers.
+  - **Agent Mode**: Non-interactive, headless, structured JSON output (`--format=json` / single-shot flags, deterministic non-zero exit codes, no interactive stdin prompts) so coding agents like **Antigravity** or CI/CD runners can invoke `adk eval`, `adk optimize`, and `adk deploy` autonomously without hanging on TTY input.
 
 ---
 
-## 5. Official exam guide — extracted verbatim (D)
+## 8. Official exam guide — verbatim 5 sections & all 28 tools in scope (D)
 
 Source: <https://services.google.com/fh/files/misc/professional_agentic_architect_exam_guide_english.pdf>
 
@@ -484,130 +324,57 @@ Source: <https://services.google.com/fh/files/misc/professional_agentic_architec
 | 4 | Evaluating and deploying agentic workflows | ~22% |
 | 5 | Securing and governing agentic workflows | ~15% |
 
-**Role definition (verbatim):** *"A Google Cloud Certified Professional Agentic Architect is a technical practitioner who designs and manages autonomous, AI-driven agentic workflows in Google Cloud. This individual is an experienced developer or architect who builds agentic solutions while considering reliability, performance, cost, security, and scalability."*
+### All 28 tools in scope (Page 4 verbatim list)
 
-### Objectives (verbatim bullets)
-
-**1.1** Configuring agentic workflows and behavior using low-code tools
-- Configuring state-based workflows (pages, transition routes, and event handlers) using Gemini Enterprise tools (e.g., Gemini Enterprise Agent Designer and Customer Experience Agent Studio [CX Agent Studio])
-- Creating system instructions and in-console prompt templates (e.g., few-shot and chain-of-thought) to guide agent behavior
-
-**1.2** Connecting enterprise data to Gemini Enterprise
-- Configuring agents to securely connect and query enterprise proprietary data sources (e.g., Gemini Enterprise and Agent Search)
-- Ingesting and processing unstructured multimodal data (e.g., videos, audio, and images) into the agentic workflow
-
-**2.1** Using coding agents effectively
-- Configuring coding agents with Model Context Protocol (MCP) servers, custom skills, and access to tools (e.g., Antigravity and Claude Code on Google Cloud)
-- Using coding agents in secure sandboxes (e.g., GKE, Cloud Workstations, and Antigravity)
-- Using coding agents to refactor source code, optimize execution runtimes, and patch application-layer vulnerabilities
-
-**2.2** Customizing coding agents for enterprise workflows
-- Creating skills, plugins, extensions hooks, rules, and subagents using Antigravity
-- Augmenting Antigravity with Agents CLI to build, scale, govern, and optimize deployed agents
-
-**3.1** Designing and building agentic workflows in code
-- Selecting and configuring the appropriate language model (LLM vs. SLM, self-hosted vs. SaaS, OSS vs. proprietary) considering cost, security, and agent architecture
-- Building custom agents using open-source libraries (e.g., ADK)
-- Configuring sessions and memory (e.g., Agent Platform Memory Bank and managed sessions)
-- Configuring skills using Agents CLI (e.g., plugins and agent vs. human mode)
-
-**3.2** Integrating enterprise domain knowledge
-- Designing, configuring, and managing RAG pipelines and vector retrieval systems (embedding models, similarity scoring, reranking) using services such as vector databases (e.g., Vector Search and Agent Retrieval)
-- Configuring agent permissions (e.g., Agent Identity)
-- Using Google Cloud tools (e.g., Agent Registry, Google Cloud MCP Servers) to configure prebuilt and custom capabilities
-
-**3.3** Orchestrating and coordinating agentic workflows
-- Orchestrating agents using agentic protocols (e.g., MCP and A2A)
-- Selecting and coordinating multiagent handoffs and workflows (parallel, sequential, graph workflow) using Google Cloud tools (Agent Identity, Agent Registry, Agent Runtime, agent policies)
-
-**4.1** Evaluating agents in development and in production
-- Creating test sets for agent evaluation (golden data, prompts, edge cases)
-- Creating continuous evaluation pipelines to assess an agent's tool execution against success criteria
-- Determining the appropriate evaluation framework and tooling (ADK evaluation tooling (evalset), Agent Platform Gen AI evaluation service, custom autoraters)
-- Evaluating an agentic system against a golden dataset to assess response and retrieval quality
-
-**4.2** Deploying and scaling production workloads
-- Selecting optimal deployment runtime based on use case, requirements, and cost (Agent Runtime, Cloud Run, GKE)
-- Troubleshooting agent issues (drift, tool invocation latency, agent reasoning loops, system failures)
-- Monitoring and optimizing agents for performance, reliability, and cost
-
-**5.1** Configuring agent security and governance
-- Implementing authentication and secure tool execution (agent-to-tool API calls using OAuth 2.0)
-- Configuring principal access boundary (PAB) policies using Agent Identity
-- Configuring Agent Gateway to monitor traffic and track agents
-- Designing and configuring agentic governance and policy enforcement (Agent Registry and Model Armor)
-
-**5.2** Implementing secure agent behavior and execution
-- Designing appropriate safety frameworks and guardrails (Agent Gateway, Model Armor, HITL)
-- Configuring secure access to data and identity propagation (Agent Gateway and Agent Registry)
-
-### Tools in scope (verbatim list)
-
-Agent Development Kit (ADK) · Agent evaluation · Agent Gateway · Agent Identity · Agent Registry ·
-Agent Retrieval and Vector Search 1.0 · Agent Runtime (formerly Agent Engine) ·
-Agent Search (formerly Vertex AI Search) · Agentic protocols (A2A, MCP) · Agents CLI in Agent Platform ·
-Antigravity (CLI, SDK, App) · Auth Manager (OAuth 2.0) · BigQuery · Cloud Run · Cloud SQL ·
-Cloud Storage · Firestore · Gemini Enterprise · Gemini LLMs ·
-Google Cloud Observability (Cloud Logging and Cloud Trace) · GKE · Memorystore for Redis ·
-Model Armor · MCP servers · Model Garden · RAG Engine · Sensitive Data Protection · Skill Registry
+1. Agent Development Kit (ADK)
+2. Agent evaluation
+3. Agent Gateway
+4. Agent Identity
+5. Agent Registry
+6. Agent Retrieval and Vector Search 1.0
+7. Agent Runtime (formerly Agent Engine)
+8. Agent Search (formerly Vertex AI Search)
+9. Agentic protocols (e.g., Agent2Agent [A2A], MCP)
+10. Agents CLI in Agent Platform
+11. Antigravity (CLI, SDK, App)
+12. Auth Manager (OAuth 2.0)
+13. BigQuery
+14. Cloud Run
+15. Cloud SQL
+16. Cloud Storage
+17. Firestore
+18. Gemini Enterprise
+19. Gemini LLMs
+20. Google Cloud Observability (Cloud Logging and Cloud Trace)
+21. Google Kubernetes Engine (GKE)
+22. Memorystore for Redis
+23. Model Armor
+24. Model Context Protocol (MCP) servers
+25. Model Garden
+26. RAG Engine
+27. Sensitive Data Protection
+28. Skill Registry
 
 ---
 
-## 6. Exam-tool → verified-implementation map
+## 9. Corrections to stale / legacy claims
 
-This is the highest-value table in the repo: it turns exam vocabulary into runnable code.
-
-| Exam tool name | Verified implementation | Confidence |
-| :--- | :--- | :--- |
-| Agent Development Kit (ADK) | `google-adk` 2.9.0 | ✅ verified |
-| Skill Registry | `google.adk.skills.SkillRegistry` + `integrations.skill_registry.GCPSkillRegistry` | ✅ verified |
-| Agent Identity | `google.adk.integrations.agent_identity` → `GcpAuthProvider`, `GcpAuthProviderScheme` | ✅ verified |
-| Agent Registry | `google.adk.integrations.agent_registry.AgentRegistry` | ✅ verified |
-| Model Armor | `google.adk.integrations.model_armor.ModelArmorPlugin` | ✅ verified |
-| Auth Manager (OAuth 2.0) | `google.adk.auth` (`OAuth2Auth`, exchanger, refresher, credential_service) | ✅ verified |
-| Agent Runtime (formerly Agent Engine) | `adk deploy agent_engine`; `AgentEngineSandboxCodeExecutor` | ✅ CLI verified |
-| Agent Platform Memory Bank | `google.adk.memory.VertexAiMemoryBankService` | ✅ verified |
-| Managed sessions | `google.adk.sessions.VertexAiSessionService` | ✅ verified |
-| Memorystore for Redis | `google.adk.integrations.redis.RedisSessionService` | ✅ verified |
-| Agent Search (formerly Vertex AI Search) | `google.adk.tools.VertexAiSearchTool`, `DiscoveryEngineSearchTool` | ✅ verified |
-| Agent Retrieval / Vector Search | `google.adk.memory.VertexAiRagMemoryService` + RAG Engine | 🟡 partial |
-| MCP servers | `google.adk.tools.MCPToolset`, `RemoteMcpServer`, `McpInstructionProvider` | ✅ verified |
-| A2A | `google.adk.a2a` (needs `[a2a]` extra); `a2a-sdk` 1.1.2 | ✅ verified |
-| Agent evaluation | `google.adk.evaluation.AgentEvaluator`; `adk eval` / `adk eval_set` | ✅ verified |
-| GKE (sandbox) | `google.adk.code_executors.GkeCodeExecutor` (needs `[extensions]`) | ✅ verified |
-| Cloud Run (sandbox) | `integrations.cloud_run.CloudRunSandboxCodeExecutor`; `adk deploy cloud_run` | ✅ verified |
-| BigQuery | `google.adk.tools.bigquery.BigQueryToolset` | ✅ verified |
-| Cloud Logging / Cloud Trace | `google.adk.telemetry` (+ `google_cloud` exporter); `adk telemetry` | ✅ verified |
-| Model Garden (OSS/SLM) | `google.adk.models.Gemma`, `LiteLlm`, `Gemma3Ollama`, `FallbackModel` | ✅ verified |
-| HITL | `google.adk.tools.request_input`, `get_user_choice`, `LongRunningFunctionTool` | ✅ verified |
-| **Agent Gateway** | policy-enforcing ingress/egress proxy for agentic MCP & A2A traffic (no local ADK class; enforced at gateway layer) | 🟡 architectural / gateway plane |
-| **Agents CLI in Agent Platform** | distinct from `adk` CLI? not confirmed | ❓ **UNVERIFIED** |
-| **Gemini Enterprise vs. Gemini Enterprise App (`GEApp`) vs. Agent Platform (`GEAP`)** | **Gemini Enterprise** is the overarching umbrella brand. **Gemini Enterprise App (`GEApp`)** is the turn-key enterprise search & assistant web application (console product), whereas **Agent Platform (`GEAP`)** is the developer platform (`adk`, Agent Runtime, Agent Registry, Memory Bank). | ✅ architectural taxonomy |
-| **Code Mender** | Autonomous AI security & vulnerability-patching coding agent (maps to Objective 2.1 *"patch application-layer vulnerabilities"* using static/dynamic analysis, fuzzing, and sandboxed verification). | ✅ architectural tool (Section 2.1) |
-| **GKE Inference Gateway** | Kubernetes Gateway API extension (`InferencePool`, `InferenceModel`) for KV-cache & prefix-cache aware routing, LoRA multiplexing, and criticality load-shedding on GKE GPU pools. | ✅ GKE AI infrastructure |
-| **Sensitive Data Protection** | no ADK integration module | 🟡 use `google-cloud-dlp` (or via Model Armor SDP templates) |
-
----
-
-## 7. Corrections to the old repo
-
-| Old repo claim | Reality |
+| Legacy / stale claim | Verified reality |
 | :--- | :--- |
 | ~~`gemini-3.7-flash` is fake~~ | **It is real** (L). Keep it. |
-| `text-embedding-005` | Stale → `gemini-embedding-2` |
-| `Gemma 2 (2B/9B/27B)` | Stale → `gemma-4-26b-a4b-it`, `gemma-4-31b-it` |
-| "ADK module" using only `google-genai` | Must use real `google-adk` |
-| `mcp>=1.3.0` | Current is `2.2.0` |
-| No `google-adk` dependency | Must add, with extras |
-| No `a2a-sdk` | Must add for Section 3.3 |
+| `text-embedding-005` / `textembedding-gecko` | Retired → use `gemini-embedding-2` (8,192 tokens) |
+| `gemini-1.5-pro` / `gemini-1.5-flash` / `gemini-2.0-flash` | Retired → use `gemini-3.7-flash`, `gemini-2.5-pro`, `gemini-3.5-flash-lite` |
+| `gemma-2-9b-it` / `gemma-2-27b-it` | Retired → use `gemma-4-26b-a4b-it`, `gemma-4-31b-it` |
+| Static Service Account JSON keys for agents | Anti-pattern → use **Agent Identity** (`GcpAuthProvider` + Workload Identity + PAB) |
+| "26 tools in scope" | Official PDF Page 4 lists **28** tools in scope |
 
 ---
 
-## 8. Authoring rules for all contributors
+## 10. Authoring rules for all contributors
 
 1. **Never** invent a model ID, class name, import path, or CLI flag. If it is not in this file, verify it or mark it UNVERIFIED.
-2. Use `common/models.py` as the single source of model IDs — no hard-coded strings in labs.
+2. Use `common/models.py` as the single source of model IDs — no hard-coded model strings in Python lab files.
 3. Mark Pre-GA / unverified products inline with a `> [!WARNING]` callout naming the closest GA equivalent.
 4. Every lab must run **offline by default** and only touch Google Cloud behind an explicit `--live` flag.
 5. Every lab must ship a `cleanup.sh` that is idempotent and safe to run twice.
-6. Prefer showing the **decision** (when to use X over Y) over showing more code — that is what the exam tests.
+6. Prefer showing the **decision** (when to use X over Y, and with what least-privilege IAM role) over boilerplate — that is what the exam tests.

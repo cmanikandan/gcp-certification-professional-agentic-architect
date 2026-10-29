@@ -25,7 +25,7 @@ Every lab runs **offline and free by default**, with an **opt-in `--live` path**
 
 ---
 
-## High-Signal Takeaways from the Beta Exam
+## Official Exam Weighting & Naming Hierarchy
 
 ```mermaid
 pie showData
@@ -36,13 +36,6 @@ pie showData
     "S5 Securing and governing" : 15
     "S1 Low-code tools" : 13
 ```
-
-> [!TIP]
-> **Cross-Cutting Reality Check (from Beta Exam Takers)**:
-> 1. **~30–35% IAM, Least-Privilege Roles & Identity**: Across *all* domains, expect heavy testing on least-privilege predefined IAM roles, **Agent Identity** (zero static SA keys), **Principal Access Boundary (PAB)** (`IAM Allow ∩ PAB`), **Gemini Enterprise connector auth** (ACL-sync SA + WIF vs. 3LO user OAuth consent), and **cross-project A2A/MCP permissions** (`roles/run.invoker`, `roles/aiplatform.user`).
-> 2. **Customer Support Agents & Regulated Compliance (HIPAA)**: Heavy focus on customer support agent archetypes and regulated compliance (**HIPAA** PHI redaction via **Model Armor + Sensitive Data Protection**, zero-capture `ContentCapturingMode`, VPC-SC, HITL) — and **very little trivia on unrelated GCP services** outside the 28-tool exam scope.
-> 3. **Antigravity Internals, Agents CLI & Code Mender**: Know `hooks.json` (`PreToolUse`, `PostToolUse`, `Stop`), `SKILL.md` / `skills.json` (L1/L2/L3), `GEMINI.md` / `AGENTS.md` vs `rules/*.md`, `plugin.json`, `mcp_config.json`, `adk` / `agents-cli` (agent mode vs. human mode, `adk optimize`), and **Code Mender** in GKE gVisor sandboxes.
-> 4. **GECX Flows, Two-Stage Reranking & Eval Rubric vs. Metric**: Master **CX Agent Studio (`GECX`)** deterministic flows vs. probabilistic playbooks, **RAG Engine + Discovery Engine Ranking API (`RankServiceClient`)**, and **ADK Eval Rubrics (`RubricsBasedCriterion`) vs. Metrics (`ToolTrajectoryCriterion`)** + **Gen AI Evaluation Service**.
 
 ### Naming hierarchy you must know cold
 

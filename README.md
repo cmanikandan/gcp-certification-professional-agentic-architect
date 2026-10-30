@@ -12,6 +12,11 @@ A hands-on, code-verified study course for the **Google Cloud Certified — Prof
 
 Every lab runs **offline and free by default**, with an **opt-in `--live` path** on Google Cloud. Every SDK class, CLI flag, and model ID was machine-verified against live Google Cloud SDK installations — see [`docs/VERIFIED_FACTS.md`](docs/VERIFIED_FACTS.md).
 
+> [!TIP]
+> **Latest Update (October 30, 2026) — Passed the Beta Exam!**
+> Passed the **Google Cloud Certified — Professional Agentic Architect** Beta exam using the study guides and 20 hands-on labs in this repository!
+> - **Verified Digital Credential (Credly)**: **[View Official Badge on Credly](https://www.credly.com/badges/e380acf4-8bb0-4a39-8d7c-5d943115a901/public_url)** (`https://www.credly.com/badges/e380acf4-8bb0-4a39-8d7c-5d943115a901/public_url`)
+
 ---
 
 ## Exam Format, GA Launch Timeline & Test UI Notes
